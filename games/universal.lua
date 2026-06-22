@@ -3778,78 +3778,303 @@ end)
 
 run(function()
     local KeybindBoost
-    local VerticalOffset
-    local HorizontalOffset
-    local rayCheck = RaycastParams.new()
-    rayCheck.RespectCanCollide = true
-    rayCheck.FilterType = Enum.RaycastFilterType.Exclude
+    local enabled = true
+    local boostSpeed = 250
+    local stopDistance = 2
+    local screenGui
+    local frame
+    local toggleButton
+    local statusLabel
+    local dragging = false
+    local dragStart = Vector2.new()
+    local startPos = UDim2.new()
+    local originalCollisions = {}
+    local isBoosting = false
+    local boostConn
+    local bodyVel
+    local connections = {}
 
-    local function getBoostPosition()
-        if not entitylib.isAlive then
-            return
+    local function addConnection(connection)
+        table.insert(connections, connection)
+        if KeybindBoost then
+            KeybindBoost:Clean(connection)
         end
+        return connection
+    end
+
+    local function setStatus(text, color)
+        if statusLabel then
+            statusLabel.Text = text
+            statusLabel.TextColor3 = color
+        end
+    end
+
+    local function getTargetBlock()
         local mouse = cloneref(lplr:GetMouse())
-        local ray = mouse.UnitRay
-        rayCheck.FilterDescendantsInstances = { lplr.Character, gameCamera }
-        local result = workspace:Raycast(ray.Origin, ray.Direction * 10000, rayCheck)
-        local part = result and result.Instance
-        if not (part and part:IsA('BasePart') and part.CanCollide) then
+        local target = mouse.Target
+        if not target then
+            return
+        end
+        if not target:IsA('BasePart') then
+            return
+        end
+        if lplr.Character and target:IsDescendantOf(lplr.Character) then
+            return
+        end
+        if not target.CanCollide then
+            return
+        end
+        return target
+    end
+
+    local function getLandingPoint(block)
+        local mouse = cloneref(lplr:GetMouse())
+        local hit = mouse.Hit.Position
+        local pos = block.Position
+        local size = block.Size
+        local dx, dy, dz = hit.X - pos.X, hit.Y - pos.Y, hit.Z - pos.Z
+        local ax, ay, az = math.abs(dx), math.abs(dy), math.abs(dz)
+        local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
+
+        if ay > ax and ay > az then
+            return dy > 0 and Vector3.new(hit.X, pos.Y + hy + 0.1, hit.Z) or Vector3.new(hit.X, pos.Y - hy - 0.1, hit.Z)
+        end
+        if ax > ay and ax > az then
+            return dx > 0 and Vector3.new(pos.X + hx + 0.1, hit.Y, hit.Z) or Vector3.new(pos.X - hx - 0.1, hit.Y, hit.Z)
+        end
+        return dz > 0 and Vector3.new(hit.X, hit.Y, pos.Z + hz + 0.1) or Vector3.new(hit.X, hit.Y, pos.Z - hz - 0.1)
+    end
+
+    local function setNoclip(enable)
+        local char = lplr.Character
+        if not char then
+            return
+        end
+        if enable then
+            originalCollisions = {}
+            for _, part in char:GetDescendants() do
+                if part:IsA('BasePart') then
+                    originalCollisions[part] = part.CanCollide
+                    part.CanCollide = false
+                end
+            end
+            return
+        end
+        for part, state in originalCollisions do
+            if part and part.Parent then
+                part.CanCollide = state
+            end
+        end
+        originalCollisions = {}
+    end
+
+    local function cleanup()
+        if boostConn then
+            boostConn:Disconnect()
+            boostConn = nil
+        end
+        if bodyVel then
+            bodyVel:Destroy()
+            bodyVel = nil
+        end
+        setNoclip(false)
+        isBoosting = false
+        if enabled then
+            setStatus('Ready', Color3.fromRGB(100, 255, 100))
+        end
+    end
+
+    local function startBoost()
+        if not enabled or isBoosting then
             return
         end
 
-        local root = entitylib.character.RootPart
-        local humanoid = entitylib.character.Humanoid
-        local normal = result.Normal
-        local hit = result.Position
-        local clearance = (humanoid.HipHeight or 2) + (root.Size.Y * 0.5) + VerticalOffset.Value
-        local sideClearance = math.max(root.Size.X, root.Size.Z) * 0.5 + HorizontalOffset.Value
-        if normal.Y > 0.5 then
-            return Vector3.new(hit.X, part.Position.Y + (part.Size.Y * 0.5) + clearance, hit.Z)
+        local block = getTargetBlock()
+        if not block then
+            setStatus('Aim at block!', Color3.fromRGB(255, 100, 100))
+            task.delay(0.5, function()
+                if statusLabel and statusLabel.Text == 'Aim at block!' then
+                    setStatus('Ready', Color3.fromRGB(100, 255, 100))
+                end
+            end)
+            return
         end
-        if normal.Y < -0.5 then
-            return hit + normal * VerticalOffset.Value
+
+        local target = getLandingPoint(block)
+        local char = lplr.Character
+        local root = char and char:FindFirstChild('HumanoidRootPart')
+        local humanoid = char and char:FindFirstChildOfClass('Humanoid')
+        if not (target and root and humanoid) then
+            return
         end
-        local offset = Vector3.new(normal.X * sideClearance, 0, normal.Z * sideClearance)
-        return Vector3.new(hit.X + offset.X, hit.Y, hit.Z + offset.Z)
+
+        local distance = (target - root.Position).Magnitude
+        if distance < stopDistance then
+            setStatus('Ready', Color3.fromRGB(100, 255, 100))
+            return
+        end
+
+        setNoclip(true)
+        isBoosting = true
+        setStatus(string.format('Boosting! (%.0f studs)', distance), Color3.fromRGB(255, 200, 100))
+
+        bodyVel = Instance.new('BodyVelocity')
+        bodyVel.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        bodyVel.Velocity = (target - root.Position).Unit * boostSpeed
+        bodyVel.Parent = root
+
+        boostConn = addConnection(runService.RenderStepped:Connect(function()
+            if not isBoosting then
+                cleanup()
+                return
+            end
+
+            local currentRoot = lplr.Character and lplr.Character:FindFirstChild('HumanoidRootPart')
+            if not (currentRoot and bodyVel and bodyVel.Parent) then
+                cleanup()
+                return
+            end
+
+            local offset = target - currentRoot.Position
+            local remaining = offset.Magnitude
+            if remaining < stopDistance then
+                currentRoot.AssemblyLinearVelocity = Vector3.zero
+                cleanup()
+                return
+            end
+
+            bodyVel.Velocity = offset.Unit * boostSpeed
+            setStatus(string.format('Boosting: %.0f studs', remaining), Color3.fromRGB(255, 200, 100))
+        end))
+
+        task.delay(5, function()
+            if isBoosting then
+                cleanup()
+            end
+        end)
+    end
+
+    local function updateFeedback()
+        if not enabled or isBoosting then
+            return
+        end
+        local block = getTargetBlock()
+        if block then
+            local root = lplr.Character and lplr.Character:FindFirstChild('HumanoidRootPart')
+            local target = root and getLandingPoint(block)
+            if target then
+                setStatus(string.format('Target: %.0f studs', (target - root.Position).Magnitude), Color3.fromRGB(100, 255, 100))
+                return
+            end
+            setStatus('On block', Color3.fromRGB(100, 255, 100))
+            return
+        end
+        setStatus('No block', Color3.fromRGB(255, 100, 100))
+    end
+
+    local function createGui()
+        if screenGui then
+            screenGui:Destroy()
+            screenGui = nil
+        end
+
+        screenGui = Instance.new('ScreenGui')
+        screenGui.Name = 'GBoostToggle'
+        screenGui.ResetOnSpawn = false
+        screenGui.Parent = lplr:WaitForChild('PlayerGui')
+
+        frame = Instance.new('Frame')
+        frame.Size = UDim2.fromOffset(180, 90)
+        frame.Position = UDim2.fromOffset(10, 10)
+        frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        frame.BorderSizePixel = 0
+        frame.Active = true
+        frame.ClipsDescendants = true
+        frame.Parent = screenGui
+
+        local corner = Instance.new('UICorner')
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = frame
+
+        toggleButton = Instance.new('TextButton')
+        toggleButton.Size = UDim2.new(1, -20, 0.65, -20)
+        toggleButton.Position = UDim2.fromOffset(10, 10)
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        toggleButton.Text = 'G Boost: ON\nSpeed: ' .. boostSpeed
+        toggleButton.TextColor3 = Color3.new(1, 1, 1)
+        toggleButton.Font = Enum.Font.GothamBold
+        toggleButton.TextSize = 13
+        toggleButton.Parent = frame
+
+        statusLabel = Instance.new('TextLabel')
+        statusLabel.Size = UDim2.new(1, -20, 0.35, -10)
+        statusLabel.Position = UDim2.new(0, 10, 0.65, 0)
+        statusLabel.BackgroundTransparency = 1
+        statusLabel.Text = 'Ready'
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        statusLabel.Font = Enum.Font.Gotham
+        statusLabel.TextSize = 11
+        statusLabel.Parent = frame
+
+        addConnection(frame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                dragStart = Vector2.new(input.Position.X, input.Position.Y)
+                startPos = frame.Position
+            end
+        end))
+        addConnection(frame.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end))
+        addConnection(inputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStart
+                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end))
+        addConnection(runService.RenderStepped:Connect(updateFeedback))
+        addConnection(inputService.InputBegan:Connect(function(input, gameProcessed)
+            if not gameProcessed and input.KeyCode == Enum.KeyCode.G and enabled and not isBoosting then
+                startBoost()
+            end
+        end))
+        addConnection(toggleButton.MouseButton1Click:Connect(function()
+            enabled = not enabled
+            if enabled then
+                toggleButton.Text = 'G Boost: ON\nSpeed: ' .. boostSpeed
+                toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+                setStatus('Ready', Color3.fromRGB(100, 255, 100))
+                return
+            end
+            toggleButton.Text = 'G Boost: OFF'
+            toggleButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+            setStatus('Disabled', Color3.fromRGB(255, 100, 100))
+            cleanup()
+        end))
     end
 
     KeybindBoost = vape.Categories.Blatant:CreateModule({
         Name = 'Keybind Boost',
         Function = function(callback)
             if callback then
-                local position = getBoostPosition()
-                if entitylib.isAlive and position then
-                    local root = entitylib.character.RootPart
-                    root.AssemblyLinearVelocity = Vector3.zero
-                    root.CFrame = CFrame.lookAlong(position, root.CFrame.LookVector)
-                end
-                if KeybindBoost.Enabled then
-                    KeybindBoost:Toggle()
-                end
+                enabled = true
+                createGui()
+                return
+            end
+            cleanup()
+            dragging = false
+            for _, connection in connections do
+                connection:Disconnect()
+            end
+            table.clear(connections)
+            if screenGui then
+                screenGui:Destroy()
+                screenGui = nil
             end
         end,
-        Tooltip = 'Boosts to the block under your cursor when enabled.',
-    })
-    KeybindBoost:SetBind({ 'G' })
-    VerticalOffset = KeybindBoost:CreateSlider({
-        Name = 'Vertical Offset',
-        Min = 0,
-        Max = 2,
-        Default = 0.1,
-        Decimal = 100,
-        Suffix = function(val)
-            return val == 1 and 'stud' or 'studs'
-        end,
-    })
-    HorizontalOffset = KeybindBoost:CreateSlider({
-        Name = 'Horizontal Offset',
-        Min = 0,
-        Max = 2,
-        Default = 0.1,
-        Decimal = 100,
-        Suffix = function(val)
-            return val == 1 and 'stud' or 'studs'
-        end,
+        Tooltip = 'Boosts to the solid block under your cursor with G.',
     })
 end)
 
