@@ -6105,13 +6105,33 @@ mainapi:Clean(friends.ColorUpdate)
 --[[
 	Profiles
 ]]
-mainapi:CreateCategoryList({
+local profiles = mainapi:CreateCategoryList({
 	Name = 'Profiles',
 	Icon = getcustomasset('catrewrite/assets/new/profilesicon.png'),
 	Size = UDim2.fromOffset(17, 10),
 	Position = UDim2.fromOffset(12, 16),
 	Placeholder = 'Type name',
 	Profiles = true
+})
+local json = profiles:CreateTextBox({
+	Name = 'JSON Config',
+	Placeholder = '[]'
+})
+profiles:CreateButton({
+	Name = 'Import json',
+	Function = function()
+		local success, result = pcall(function() 
+			return httpService:JSONDecode(json.Value) 
+		end)
+		if success and result then
+			local awesome = `imported ({#mainapi.Profiles + 1})`
+			table.insert(mainapi.Profiles, {Name = awesome, Bind = {}})
+			mainapi:Save(awesome)
+			writefile('catrewrite/profiles/'..awesome..mainapi.Place..'.txt', result.config)
+			writefile('catrewrite/profiles/'..game.GameId..'.gui.txt', result.gui)
+			mainapi:Load(true, awesome)
+		end
+	end
 })
 
 --[[
@@ -6159,6 +6179,21 @@ general:CreateButton({
 		end
 	end,
 	Tooltip = 'This will set your profile to the default settings of Vape'
+})
+general:CreateButton({
+	Name = 'Export to JSON',
+	Function = function()
+		local tab = {}
+		if isfile('catrewrite/profiles/'..mainapi.Profile..mainapi.Place..'.txt') then
+			tab.config = readfile('catrewrite/profiles/'..mainapi.Profile..mainapi.Place..'.txt')
+		end
+		if isfile('catrewrite/profiles/'..game.GameId..'.gui.txt') then
+			tab.gui = readfile('catrewrite/profiles/'..game.GameId..'.gui.txt')
+		end
+		tab.game = tostring(mainapi.Place or 'universal'.. game.PlaceId)
+		setclipboard(httpService:JSONEncode(tab))
+	end,
+	Tooltip = 'Converts ur config to json format'
 })
 general:CreateButton({
 	Name = 'Self destruct',
@@ -7216,7 +7251,6 @@ end))
 
 local whitelist = {Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3}
 local function convert(input)
-	warn(tostring(input))
 	return {KeyCode = {Name = input == Enum.UserInputType.MouseButton2 and 'MB2' or input == Enum.UserInputType.MouseButton1 and 'MB1' or 'MB3'}}
 end
 local function keybindStart(inputObj)
