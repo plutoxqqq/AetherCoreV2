@@ -6315,17 +6315,31 @@ local function createConfigManager(categoryapi)
 	local configMetadata = {
 		cc = {
 			Title = 'cc',
-			Accent = Color3.fromRGB(137, 60, 255),
 			Description = 'A legitimate-focused configuration with essential tools for smooth and clean gameplay.',
 			Tags = {'legit', 'clean', 'pvp'}
 		},
 		rage = {
 			Title = 'rage',
-			Accent = Color3.fromRGB(151, 45, 255),
 			Description = 'An aggressive configuration tuned for high-impact modules and faster engagements.',
 			Tags = {'aggressive', 'pvp', 'destructive'}
 		}
 	}
+
+	local function getGuiAccent(valueScale, saturationScale)
+		return Color3.fromHSV(
+			mainapi.GUIColor.Hue,
+			math.clamp(mainapi.GUIColor.Sat * (saturationScale or 1), 0, 1),
+			math.clamp(mainapi.GUIColor.Value * (valueScale or 1), 0, 1)
+		)
+	end
+
+	local function getGuiAccentText()
+		return Color3.fromHSV(mainapi.GUIColor.Hue, math.clamp(mainapi.GUIColor.Sat, 0, 0.82), 1)
+	end
+
+	local function getGuiAccentBackground()
+		return Color3.fromHSV(mainapi.GUIColor.Hue, math.clamp(mainapi.GUIColor.Sat * 0.55, 0, 0.75), 0.18)
+	end
 
 	local function getConfigSummary(name, bundled)
 		local path = bundled and ('aethercorev2/configs/'..name..'.json') or getConfigPath(name)
@@ -6370,7 +6384,7 @@ local function createConfigManager(categoryapi)
 	addCorner(manager, UDim.new(0, 12))
 
 	local stroke = Instance.new('UIStroke')
-	stroke.Color = Color3.fromRGB(100, 45, 180)
+	stroke.Color = getGuiAccent(1.15)
 	stroke.Transparency = 0.2
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Parent = manager
@@ -6379,7 +6393,7 @@ local function createConfigManager(categoryapi)
 	gradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(12, 15, 29)),
 		ColorSequenceKeypoint.new(0.55, Color3.fromRGB(7, 9, 18)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 10, 31))
+		ColorSequenceKeypoint.new(1, getGuiAccentBackground())
 	})
 	gradient.Rotation = 25
 	gradient.Parent = manager
@@ -6402,7 +6416,7 @@ local function createConfigManager(categoryapi)
 	logo.Position = UDim2.fromOffset(22, 17)
 	logo.BackgroundTransparency = 1
 	logo.Text = '▣'
-	logo.TextColor3 = Color3.fromRGB(160, 70, 255)
+	logo.TextColor3 = getGuiAccentText()
 	logo.TextSize = 29
 	logo.FontFace = uipallet.Font
 	logo.Parent = manager
@@ -6450,7 +6464,7 @@ local function createConfigManager(categoryapi)
 		pane.Parent = manager
 		addCorner(pane, UDim.new(0, 9))
 		local paneStroke = Instance.new('UIStroke')
-		paneStroke.Color = Color3.fromRGB(52, 58, 88)
+		paneStroke.Color = getGuiAccent(0.85, 0.55)
 		paneStroke.Transparency = 0.18
 		paneStroke.Parent = pane
 		local label = Instance.new('TextLabel')
@@ -6479,7 +6493,7 @@ local function createConfigManager(categoryapi)
 		list.BackgroundTransparency = 1
 		list.BorderSizePixel = 0
 		list.ScrollBarThickness = 3
-		list.ScrollBarImageColor3 = Color3.fromRGB(138, 78, 255)
+		list.ScrollBarImageColor3 = getGuiAccentText()
 		list.CanvasSize = UDim2.new()
 		list.Parent = parent
 		local layout = Instance.new('UIListLayout')
@@ -6507,10 +6521,10 @@ local function createConfigManager(categoryapi)
 		button.Parent = parent
 		addCorner(button, UDim.new(0, 7))
 		local buttonStroke = Instance.new('UIStroke')
-		buttonStroke.Color = danger and Color3.fromRGB(145, 35, 62) or Color3.fromRGB(75, 50, 130)
+		buttonStroke.Color = danger and Color3.fromRGB(145, 35, 62) or getGuiAccent(0.95, 0.75)
 		buttonStroke.Transparency = 0.15
 		buttonStroke.Parent = button
-		button.MouseEnter:Connect(function() tween:Tween(button, uipallet.Tween, {BackgroundColor3 = danger and Color3.fromRGB(58, 16, 30) or Color3.fromRGB(91, 35, 188)}) end)
+		button.MouseEnter:Connect(function() tween:Tween(button, uipallet.Tween, {BackgroundColor3 = danger and Color3.fromRGB(58, 16, 30) or getGuiAccent(1.12)}) end)
 		button.MouseLeave:Connect(function() tween:Tween(button, uipallet.Tween, {BackgroundColor3 = danger and Color3.fromRGB(42, 12, 23) or Color3.fromRGB(18, 22, 38)}) end)
 		button.MouseButton1Click:Connect(callback)
 		return button
@@ -6520,9 +6534,9 @@ local function createConfigManager(categoryapi)
 		local tag = Instance.new('TextLabel')
 		tag.Size = UDim2.fromOffset(math.max(42, #text * 7 + 14), 18)
 		tag.Position = UDim2.fromOffset(x, 29)
-		tag.BackgroundColor3 = Color3.fromRGB(36, 28, 72)
+		tag.BackgroundColor3 = getGuiAccentBackground()
 		tag.Text = text
-		tag.TextColor3 = Color3.fromRGB(175, 110, 255)
+		tag.TextColor3 = getGuiAccentText()
 		tag.TextSize = 10
 		tag.FontFace = uipallet.Font
 		tag.Parent = parent
@@ -6531,24 +6545,24 @@ local function createConfigManager(categoryapi)
 	end
 
 	local function createRow(parent, name, selected, callback, bundled)
-		local meta = configMetadata[name] or {Title = name, Accent = Color3.fromRGB(85, 130, 255), Description = 'Custom configuration', Tags = {}}
+		local meta = configMetadata[name] or {Title = name, Accent = getGuiAccent(1.1), Description = 'Custom configuration', Tags = {}}
 		local summary = getConfigSummary(name, bundled)
 		local row = Instance.new('TextButton')
 		row.Name = name
 		row.Size = UDim2.new(1, -2, 0, 62)
-		row.BackgroundColor3 = selected and Color3.fromRGB(28, 16, 58) or Color3.fromRGB(10, 13, 24)
+		row.BackgroundColor3 = selected and getGuiAccentBackground() or Color3.fromRGB(10, 13, 24)
 		row.AutoButtonColor = false
 		row.Text = ''
 		row.Parent = parent
 		addCorner(row, UDim.new(0, 8))
 		local rowStroke = Instance.new('UIStroke')
-		rowStroke.Color = selected and Color3.fromRGB(145, 55, 255) or Color3.fromRGB(42, 48, 75)
+		rowStroke.Color = selected and getGuiAccentText() or Color3.fromRGB(42, 48, 75)
 		rowStroke.Transparency = selected and 0 or 0.18
 		rowStroke.Parent = row
 		local avatar = Instance.new('TextLabel')
 		avatar.Size = UDim2.fromOffset(36, 36)
 		avatar.Position = UDim2.fromOffset(12, 13)
-		avatar.BackgroundColor3 = meta.Accent
+		avatar.BackgroundColor3 = meta.Accent or getGuiAccent(1.08)
 		avatar.Text = bundled and string.upper(string.sub(name, 1, math.min(4, #name))) or '▱'
 		avatar.TextColor3 = Color3.new(1, 1, 1)
 		avatar.TextSize = bundled and 13 or 22
@@ -6585,7 +6599,7 @@ local function createConfigManager(categoryapi)
 			active.Position = UDim2.new(1, -64, 0, 8)
 			active.Size = UDim2.fromOffset(50, 18)
 			active.Text = 'ACTIVE'
-			active.TextColor3 = Color3.fromRGB(174, 98, 255)
+			active.TextColor3 = getGuiAccentText()
 			active.Parent = row
 		end
 		row.MouseButton1Click:Connect(callback)
@@ -6594,7 +6608,7 @@ local function createConfigManager(categoryapi)
 
 	local function refreshPreview()
 		clearGuiObjects(previewList)
-		local meta = configMetadata[selectedCommunityConfig] or {Title = selectedCommunityConfig, Accent = Color3.fromRGB(120, 70, 255), Description = 'Community configuration.', Tags = {}}
+		local meta = configMetadata[selectedCommunityConfig] or {Title = selectedCommunityConfig, Accent = getGuiAccent(1.1), Description = 'Community configuration.', Tags = {}}
 		local summary = getConfigSummary(selectedCommunityConfig, true)
 		local header = Instance.new('TextLabel')
 		header.Size = UDim2.new(1, -2, 0, 92)
@@ -6616,7 +6630,7 @@ local function createConfigManager(categoryapi)
 			local item = modulesTitle:Clone()
 			item.Size = UDim2.new(1, -2, 0, 18)
 			item.Text = '•  '..summary.Modules[i]..'                                      '..((i <= summary.Enabled) and 'Enabled' or '')
-			item.TextColor3 = i <= summary.Enabled and Color3.fromRGB(177, 94, 255) or color.Dark(uipallet.Text, 0.28)
+			item.TextColor3 = i <= summary.Enabled and getGuiAccentText() or color.Dark(uipallet.Text, 0.28)
 			item.Parent = previewList
 		end
 		previewList.CanvasSize = UDim2.fromOffset(0, previewLayout.AbsoluteContentSize.Y)
