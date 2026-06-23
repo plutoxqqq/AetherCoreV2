@@ -6334,21 +6334,19 @@ local function createConfigManager(categoryapi)
 	local selectedProfile = mainapi.Profile or 'default'
 	local selectedCommunityConfig = communityConfigs[1] or 'cc'
 	local previewMode = 'community'
-	local selectedSavedRow
-	local selectedCommunityRow
 	local accentObjects = {}
 	local configMetadata = {
 		cc = {
-			Title = 'cc',
+			Title = 'CC Config',
 			Initials = 'CC',
-			Description = 'A legitimate-focused configuration with essential modules for smooth gameplay.',
+			Description = 'A legitimate-focused configuration with essential modules for smooth gameplay. Great for everyday PvP and ranked matches.',
 			Tags = {'legit', 'clean', 'pvp'}
 		},
 		rage = {
-			Title = 'rage',
-			Initials = 'RAGE',
-			Description = 'An aggressive configuration tuned for stronger module pressure and faster fights.',
-			Tags = {'aggressive', 'pvp', 'destructive'}
+			Title = 'Rage Config',
+			Initials = 'RG',
+			Description = 'An aggressive configuration tuned for maximum pressure and fast eliminations. Best for unranked or casual lobbies.',
+			Tags = {'aggressive', 'pvp', 'blatant'}
 		}
 	}
 
@@ -6356,73 +6354,49 @@ local function createConfigManager(categoryapi)
 		return type(text) == 'string' and text:gsub('^%s*(.-)%s*$', '%1') or ''
 	end
 
-	local function getGuiAccent(valueScale, saturationScale)
+	local function getAccent(v, s)
 		return Color3.fromHSV(
 			mainapi.GUIColor.Hue,
-			math.clamp(mainapi.GUIColor.Sat * (saturationScale or 1), 0, 1),
-			math.clamp(mainapi.GUIColor.Value * (valueScale or 1), 0, 1)
+			math.clamp(mainapi.GUIColor.Sat * (s or 1), 0, 1),
+			math.clamp(mainapi.GUIColor.Value * (v or 1), 0, 1)
 		)
 	end
 
-	local function getGuiAccentText()
+	local function getAccentText()
 		return Color3.fromHSV(mainapi.GUIColor.Hue, math.clamp(mainapi.GUIColor.Sat, 0, 0.82), 1)
 	end
 
-	local function getGuiAccentBackground(value)
-		return Color3.fromHSV(mainapi.GUIColor.Hue, math.clamp(mainapi.GUIColor.Sat * 0.55, 0, 0.75), value or 0.18)
+	local function getAccentBg(v)
+		return Color3.fromHSV(mainapi.GUIColor.Hue, math.clamp(mainapi.GUIColor.Sat * 0.50, 0, 0.70), v or 0.17)
 	end
 
-	local function getGuiAccentDim()
-		return Color3.fromHSV(mainapi.GUIColor.Hue, math.clamp(mainapi.GUIColor.Sat * 0.40, 0, 0.65), 0.10)
+	local function getMuted(a)
+		return color.Dark(uipallet.Text, a or 0.34)
 	end
 
-	local function getMutedText(amount)
-		return color.Dark(uipallet.Text, amount or 0.34)
+	local function bindAccent(obj, prop, v, s, mode)
+		table.insert(accentObjects, {Object = obj, Property = prop, V = v, S = s, Mode = mode})
+		if mode == 'text' then obj[prop] = getAccentText()
+		elseif mode == 'bg' then obj[prop] = getAccentBg(v)
+		else obj[prop] = getAccent(v, s) end
 	end
 
-	local function bindAccent(object, property, valueScale, saturationScale, mode)
-		table.insert(accentObjects, {
-			Object = object,
-			Property = property,
-			ValueScale = valueScale,
-			SaturationScale = saturationScale,
-			Mode = mode
-		})
-		if mode == 'text' then
-			object[property] = getGuiAccentText()
-		elseif mode == 'background' then
-			object[property] = getGuiAccentBackground(valueScale)
-		elseif mode == 'dim' then
-			object[property] = getGuiAccentDim()
-		else
-			object[property] = getGuiAccent(valueScale, saturationScale)
-		end
-	end
-
-	local function refreshAccentObjects()
+	local function refreshAccents()
 		for i = #accentObjects, 1, -1 do
-			local item = accentObjects[i]
-			if not item.Object or not item.Object.Parent then
+			local a = accentObjects[i]
+			if not a.Object or not a.Object.Parent then
 				table.remove(accentObjects, i)
-			elseif item.Mode == 'text' then
-				item.Object[item.Property] = getGuiAccentText()
-			elseif item.Mode == 'background' then
-				item.Object[item.Property] = getGuiAccentBackground(item.ValueScale)
-			elseif item.Mode == 'dim' then
-				item.Object[item.Property] = getGuiAccentDim()
-			else
-				item.Object[item.Property] = getGuiAccent(item.ValueScale, item.SaturationScale)
-			end
+			elseif a.Mode == 'text' then a.Object[a.Property] = getAccentText()
+			elseif a.Mode == 'bg' then a.Object[a.Property] = getAccentBg(a.V)
+			else a.Object[a.Property] = getAccent(a.V, a.S) end
 		end
 	end
 
 	local function decodeConfigData(data)
 		if type(data) ~= 'table' then return nil end
 		if type(data.config) == 'string' then
-			local suc, decoded = pcall(function()
-				return httpService:JSONDecode(data.config)
-			end)
-			return suc and type(decoded) == 'table' and decoded or nil
+			local ok, dec = pcall(function() return httpService:JSONDecode(data.config) end)
+			return ok and type(dec) == 'table' and dec or nil
 		end
 		if type(data.config) == 'table' then return data.config end
 		if type(data.Modules) == 'table' then return data end
@@ -6437,46 +6411,40 @@ local function createConfigManager(categoryapi)
 
 	local function getConfigSummary(name, bundled)
 		local decoded, wrapper = readConfigData(name, bundled)
-		local modules, enabledModules, disabledModules, keybinds = {}, {}, {}, {}
+		local modules, enabled, disabled, keybinds = {}, {}, {}, {}
 		if decoded and type(decoded.Modules) == 'table' then
-			for moduleName, moduleData in decoded.Modules do
-				table.insert(modules, moduleName)
-				if type(moduleData) == 'table' then
-					if moduleData.Enabled then
-						table.insert(enabledModules, moduleName)
-					else
-						table.insert(disabledModules, moduleName)
-					end
-					if type(moduleData.Bind) == 'table' and #moduleData.Bind > 0 then
-						table.insert(keybinds, {Name = moduleName, Bind = table.concat(moduleData.Bind, ' + ')})
+			for mn, md in decoded.Modules do
+				table.insert(modules, mn)
+				if type(md) == 'table' then
+					if md.Enabled then table.insert(enabled, mn)
+					else table.insert(disabled, mn) end
+					if type(md.Bind) == 'table' and #md.Bind > 0 then
+						table.insert(keybinds, {Name = mn, Bind = table.concat(md.Bind, ' + ')})
 					end
 				else
-					table.insert(disabledModules, moduleName)
+					table.insert(disabled, mn)
 				end
 			end
 			table.sort(modules)
-			table.sort(enabledModules)
-			table.sort(disabledModules)
+			table.sort(enabled)
+			table.sort(disabled)
 			table.sort(keybinds, function(a, b) return a.Name:lower() < b.Name:lower() end)
 		end
 		return {
-			Modules = modules,
-			EnabledModules = enabledModules,
-			DisabledModules = disabledModules,
-			Keybinds = keybinds,
-			Count = #modules,
-			Enabled = #enabledModules,
+			Modules = modules, EnabledModules = enabled, DisabledModules = disabled,
+			Keybinds = keybinds, Count = #modules, Enabled = #enabled,
 			Game = wrapper and wrapper.game or tostring(mainapi.Place or game.GameId),
 			Exists = decoded ~= nil
 		}
 	end
 
-	local function clearGuiObjects(parent)
-		for _, child in parent:GetChildren() do
-			if child:IsA('GuiObject') then child:Destroy() end
+	local function clearGui(parent)
+		for _, c in parent:GetChildren() do
+			if c:IsA('GuiObject') then c:Destroy() end
 		end
 	end
 
+	-- ── Input blocker ────────────────────────────────────────────────────
 	local inputBlocker = Instance.new('TextButton')
 	inputBlocker.Name = 'ConfigManagerInputBlocker'
 	inputBlocker.Size = UDim2.fromScale(1, 1)
@@ -6488,718 +6456,862 @@ local function createConfigManager(categoryapi)
 	inputBlocker.Visible = false
 	inputBlocker.Parent = clickgui
 
+	-- ── Root frame ───────────────────────────────────────────────────────
+	local BASE = Color3.fromRGB(8, 9, 15)
+	local SURFACE = Color3.fromRGB(11, 13, 21)
+	local PANEL = Color3.fromRGB(13, 16, 26)
+	local CARD = Color3.fromRGB(16, 19, 30)
+	local BORDER = Color3.fromRGB(35, 40, 62)
+
 	local manager = Instance.new('Frame')
 	manager.Name = 'ConfigManager'
-	manager.Size = UDim2.new(1, -28, 1, -28)
-	manager.Position = UDim2.fromOffset(14, 14)
-	manager.BackgroundColor3 = Color3.fromRGB(7, 9, 16)
+	manager.Size = UDim2.new(1, -32, 1, -32)
+	manager.Position = UDim2.fromOffset(16, 16)
+	manager.BackgroundColor3 = BASE
 	manager.Active = true
 	manager.ZIndex = 50
 	manager.Visible = false
 	manager.ClipsDescendants = true
 	manager.Parent = clickgui
-	addBlur(manager)
-	addCorner(manager, UDim.new(0, 13))
+	addCorner(manager, UDim.new(0, 12))
 
-	local function setManagerLayer(object)
-		if object:IsA('GuiObject') then
-			object.ZIndex = math.max(object.ZIndex, manager.ZIndex + 1)
+	local function setZ(obj)
+		if obj:IsA('GuiObject') then
+			obj.ZIndex = math.max(obj.ZIndex, manager.ZIndex + 1)
 		end
 	end
-	manager.DescendantAdded:Connect(setManagerLayer)
+	manager.DescendantAdded:Connect(setZ)
 
-	local managerStroke = Instance.new('UIStroke')
-	managerStroke.Transparency = 0.12
-	managerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	managerStroke.Parent = manager
-	bindAccent(managerStroke, 'Color', 1.04, 0.85)
-
-	local managerGradient = Instance.new('UIGradient')
-	managerGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 13, 24)),
-		ColorSequenceKeypoint.new(0.58, Color3.fromRGB(7, 9, 16)),
-		ColorSequenceKeypoint.new(1, getGuiAccentBackground(0.13))
+	-- Subtle top-glow gradient
+	local rootGrad = Instance.new('UIGradient')
+	rootGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(11, 14, 23)),
+		ColorSequenceKeypoint.new(0.55, BASE),
+		ColorSequenceKeypoint.new(1, getAccentBg(0.11))
 	})
-	managerGradient.Rotation = 25
-	managerGradient.Parent = manager
+	rootGrad.Rotation = 22
+	rootGrad.Parent = manager
 
-	local rail = Instance.new('Frame')
-	rail.Name = 'Sidebar'
-	rail.Size = UDim2.new(0, 190, 1, 0)
-	rail.BackgroundColor3 = Color3.fromRGB(8, 10, 18)
-	rail.BorderSizePixel = 0
-	rail.Parent = manager
+	local rootStroke = Instance.new('UIStroke')
+	rootStroke.Transparency = 0.08
+	rootStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	rootStroke.Parent = manager
+	bindAccent(rootStroke, 'Color', 1.0, 0.78)
 
-	local railDivider = Instance.new('Frame')
-	railDivider.Name = 'Divider'
-	railDivider.Size = UDim2.new(0, 1, 1, 0)
-	railDivider.Position = UDim2.new(1, 0, 0, 0)
-	railDivider.BorderSizePixel = 0
-	railDivider.BackgroundColor3 = Color3.fromRGB(38, 43, 65)
-	railDivider.BackgroundTransparency = 0.25
-	railDivider.Parent = rail
+	-- ── Top header bar ───────────────────────────────────────────────────
+	local HEADER_H = 68
 
-	local brandIcon = Instance.new('TextLabel')
-	brandIcon.Name = 'BrandIcon'
-	brandIcon.Size = UDim2.fromOffset(38, 38)
-	brandIcon.Position = UDim2.fromOffset(18, 22)
-	brandIcon.BackgroundTransparency = 1
-	brandIcon.Text = 'A'
-	brandIcon.TextSize = 30
-	brandIcon.FontFace = uipallet.FontSemiBold
-	brandIcon.Parent = rail
-	bindAccent(brandIcon, 'TextColor3', nil, nil, 'text')
+	local headerBar = Instance.new('Frame')
+	headerBar.Name = 'Header'
+	headerBar.Size = UDim2.new(1, 0, 0, HEADER_H)
+	headerBar.BackgroundColor3 = SURFACE
+	headerBar.BorderSizePixel = 0
+	headerBar.Parent = manager
 
-	local brand = Instance.new('TextLabel')
-	brand.Name = 'Brand'
-	brand.Size = UDim2.new(1, -68, 0, 24)
-	brand.Position = UDim2.fromOffset(62, 22)
-	brand.BackgroundTransparency = 1
-	brand.Text = 'AETHERCORE'
-	brand.TextXAlignment = Enum.TextXAlignment.Left
-	brand.TextColor3 = uipallet.Text
-	brand.TextSize = 17
-	brand.FontFace = uipallet.FontSemiBold
-	brand.Parent = rail
+	local headerGrad = Instance.new('UIGradient')
+	headerGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(12, 15, 25)),
+		ColorSequenceKeypoint.new(1, getAccentBg(0.14))
+	})
+	headerGrad.Rotation = 0
+	headerGrad.Parent = headerBar
 
-	local brandSub = brand:Clone()
-	brandSub.Name = 'BrandSubtitle'
-	brandSub.Position = UDim2.fromOffset(63, 47)
-	brandSub.Text = 'COMMUNITY EDITION'
-	brandSub.TextColor3 = getMutedText(0.43)
-	brandSub.TextSize = 9
-	brandSub.FontFace = uipallet.Font
-	brandSub.Parent = rail
+	local headerDivider = Instance.new('Frame')
+	headerDivider.Size = UDim2.new(1, 0, 0, 1)
+	headerDivider.Position = UDim2.new(0, 0, 1, -1)
+	headerDivider.BackgroundColor3 = BORDER
+	headerDivider.BackgroundTransparency = 0.20
+	headerDivider.BorderSizePixel = 0
+	headerDivider.Parent = headerBar
 
-	local navDivider = Instance.new('Frame')
-	navDivider.Size = UDim2.new(1, -32, 0, 1)
-	navDivider.Position = UDim2.fromOffset(16, 82)
-	navDivider.BorderSizePixel = 0
-	navDivider.BackgroundColor3 = Color3.fromRGB(48, 54, 78)
-	navDivider.BackgroundTransparency = 0.38
-	navDivider.Parent = rail
+	local headerAccentLine = Instance.new('Frame')
+	headerAccentLine.Size = UDim2.new(1, 0, 0, 1)
+	headerAccentLine.Position = UDim2.new(0, 0, 0, 0)
+	headerAccentLine.BackgroundTransparency = 0.10
+	headerAccentLine.BorderSizePixel = 0
+	headerAccentLine.Parent = headerBar
+	bindAccent(headerAccentLine, 'BackgroundColor3', 0.95, 0.65)
 
-	local navItems = {'Combat', 'Blatant', 'Render', 'Utility', 'World', 'Kits', 'Configs', 'Friends', 'Targets'}
-	local navIcons = {'⚔', '◎', '◉', '⌘', '◌', '□', '▣', '☷', '⌾'}
-	for i, navName in navItems do
-		local nav = Instance.new('TextButton')
-		nav.Name = navName..'Nav'
-		nav.Size = UDim2.new(1, -24, 0, 38)
-		nav.Position = UDim2.fromOffset(12, 100 + ((i - 1) * 43))
-		nav.BackgroundColor3 = navName == 'Configs' and getGuiAccentBackground(0.20) or Color3.fromRGB(8, 10, 18)
-		nav.BackgroundTransparency = navName == 'Configs' and 0 or 1
-		nav.AutoButtonColor = false
-		nav.Text = ''
-		nav.Parent = rail
-		addCorner(nav, UDim.new(0, 8))
-		if navName == 'Configs' then
-			bindAccent(nav, 'BackgroundColor3', 0.20, nil, 'background')
-			local navStroke = Instance.new('UIStroke')
-			navStroke.Transparency = 0.14
-			navStroke.Parent = nav
-			bindAccent(navStroke, 'Color', 1.03, 0.82)
-		end
-		local icon = Instance.new('TextLabel')
-		icon.Size = UDim2.fromOffset(35, 38)
-		icon.BackgroundTransparency = 1
-		icon.Text = navIcons[i]
-		icon.TextSize = 16
-		icon.TextColor3 = navName == 'Configs' and getGuiAccentText() or getMutedText(0.34)
-		icon.FontFace = uipallet.Font
-		icon.Parent = nav
-		if navName == 'Configs' then bindAccent(icon, 'TextColor3', nil, nil, 'text') end
-		local navLabel = Instance.new('TextLabel')
-		navLabel.Size = UDim2.new(1, -44, 1, 0)
-		navLabel.Position = UDim2.fromOffset(44, 0)
-		navLabel.BackgroundTransparency = 1
-		navLabel.Text = navName
-		navLabel.TextXAlignment = Enum.TextXAlignment.Left
-		navLabel.TextColor3 = navName == 'Configs' and uipallet.Text or getMutedText(0.30)
-		navLabel.TextSize = 14
-		navLabel.FontFace = uipallet.Font
-		navLabel.Parent = nav
+	-- Icon badge
+	local iconBadge = Instance.new('Frame')
+	iconBadge.Size = UDim2.fromOffset(36, 36)
+	iconBadge.Position = UDim2.fromOffset(20, 16)
+	iconBadge.BackgroundColor3 = getAccentBg(0.22)
+	iconBadge.BorderSizePixel = 0
+	iconBadge.Parent = headerBar
+	addCorner(iconBadge, UDim.new(0, 8))
+	bindAccent(iconBadge, 'BackgroundColor3', 0.22, nil, 'bg')
+
+	local iconBadgeStroke = Instance.new('UIStroke')
+	iconBadgeStroke.Transparency = 0.12
+	iconBadgeStroke.Parent = iconBadge
+	bindAccent(iconBadgeStroke, 'Color', 1.0, 0.80)
+
+	local iconBadgeLabel = Instance.new('TextLabel')
+	iconBadgeLabel.Size = UDim2.fromScale(1, 1)
+	iconBadgeLabel.BackgroundTransparency = 1
+	iconBadgeLabel.Text = '▣'
+	iconBadgeLabel.TextSize = 18
+	iconBadgeLabel.FontFace = uipallet.Font
+	iconBadgeLabel.Parent = iconBadge
+	bindAccent(iconBadgeLabel, 'TextColor3', nil, nil, 'text')
+
+	local headerTitle = Instance.new('TextLabel')
+	headerTitle.Size = UDim2.new(0.5, -80, 0, 26)
+	headerTitle.Position = UDim2.fromOffset(66, 12)
+	headerTitle.BackgroundTransparency = 1
+	headerTitle.Text = 'Config Manager'
+	headerTitle.TextXAlignment = Enum.TextXAlignment.Left
+	headerTitle.TextColor3 = uipallet.Text
+	headerTitle.TextSize = 20
+	headerTitle.FontFace = uipallet.FontSemiBold
+	headerTitle.Parent = headerBar
+
+	local headerSub = Instance.new('TextLabel')
+	headerSub.Size = UDim2.new(0.6, -80, 0, 18)
+	headerSub.Position = UDim2.fromOffset(67, 39)
+	headerSub.BackgroundTransparency = 1
+	headerSub.Text = 'Download, switch, import and delete configs — changes apply immediately'
+	headerSub.TextXAlignment = Enum.TextXAlignment.Left
+	headerSub.TextColor3 = getMuted(0.40)
+	headerSub.TextSize = 11
+	headerSub.FontFace = uipallet.Font
+	headerSub.Parent = headerBar
+
+	-- Version pill
+	local versionPill = Instance.new('TextLabel')
+	versionPill.Size = UDim2.fromOffset(72, 24)
+	versionPill.Position = UDim2.new(1, -200, 0, 22)
+	versionPill.BackgroundColor3 = CARD
+	versionPill.Text = 'v'..tostring(mainapi.Version)
+	versionPill.TextColor3 = getMuted(0.26)
+	versionPill.TextSize = 11
+	versionPill.FontFace = uipallet.FontSemiBold
+	versionPill.Parent = headerBar
+	addCorner(versionPill, UDim.new(0, 7))
+
+	local gamePill = Instance.new('TextLabel')
+	gamePill.Size = UDim2.fromOffset(90, 24)
+	gamePill.Position = UDim2.new(1, -116, 0, 22)
+	gamePill.BackgroundColor3 = getAccentBg(0.18)
+	gamePill.Text = '● LIVE'
+	gamePill.TextColor3 = getAccentText()
+	gamePill.TextSize = 11
+	gamePill.FontFace = uipallet.FontSemiBold
+	gamePill.Parent = headerBar
+	addCorner(gamePill, UDim.new(0, 7))
+	bindAccent(gamePill, 'BackgroundColor3', 0.18, nil, 'bg')
+	bindAccent(gamePill, 'TextColor3', nil, nil, 'text')
+
+	-- Close button
+	local closeBtn = Instance.new('TextButton')
+	closeBtn.Name = 'Close'
+	closeBtn.Size = UDim2.fromOffset(32, 32)
+	closeBtn.Position = UDim2.new(1, -16, 0, 18)
+	closeBtn.AnchorPoint = Vector2.new(1, 0)
+	closeBtn.BackgroundColor3 = CARD
+	closeBtn.AutoButtonColor = false
+	closeBtn.Text = '×'
+	closeBtn.TextColor3 = getMuted(0.22)
+	closeBtn.TextSize = 22
+	closeBtn.FontFace = uipallet.Font
+	closeBtn.Parent = headerBar
+	addCorner(closeBtn, UDim.new(0, 8))
+
+	-- ── Content area ─────────────────────────────────────────────────────
+	local CONTENT_Y = HEADER_H + 16
+	local BOTTOM_BAR_H = 58
+	local CONTENT_H_OFFSET = -(CONTENT_Y + BOTTOM_BAR_H + 16)
+
+	-- Three-column layout
+	-- Col A: Saved Configs    ~30% width
+	-- Col B: Community        ~26% width  
+	-- Col C: Preview          ~44% width
+
+	local COL_GAP = 12
+	local COL_A_W = 0.30
+	local COL_B_W = 0.26
+	local COL_C_W = 0.44
+
+	local function makePanel(name, x_scale, x_offset, w_scale, w_offset)
+		local panel = Instance.new('Frame')
+		panel.Name = name
+		panel.Position = UDim2.new(x_scale, x_offset, 0, CONTENT_Y)
+		panel.Size = UDim2.new(w_scale, w_offset, 1, CONTENT_H_OFFSET)
+		panel.BackgroundColor3 = PANEL
+		panel.ClipsDescendants = false
+		panel.Parent = manager
+		addCorner(panel, UDim.new(0, 9))
+
+		local panelStroke = Instance.new('UIStroke')
+		panelStroke.Color = BORDER
+		panelStroke.Transparency = 0.22
+		panelStroke.Parent = panel
+
+		local topLine = Instance.new('Frame')
+		topLine.Size = UDim2.new(1, 0, 0, 1)
+		topLine.BackgroundTransparency = 0.18
+		topLine.BorderSizePixel = 0
+		topLine.Parent = panel
+		bindAccent(topLine, 'BackgroundColor3', 0.88, 0.55)
+
+		return panel, panelStroke
 	end
 
-	local userCard = Instance.new('Frame')
-	userCard.Name = 'UserCard'
-	userCard.Size = UDim2.new(1, -24, 0, 62)
-	userCard.Position = UDim2.new(0, 12, 1, -78)
-	userCard.BackgroundColor3 = Color3.fromRGB(10, 13, 24)
-	userCard.Parent = rail
-	addCorner(userCard, UDim.new(0, 9))
-	local userStroke = Instance.new('UIStroke')
-	userStroke.Color = Color3.fromRGB(42, 48, 75)
-	userStroke.Transparency = 0.38
-	userStroke.Parent = userCard
-	local userLogo = Instance.new('TextLabel')
-	userLogo.Size = UDim2.fromOffset(34, 34)
-	userLogo.Position = UDim2.fromOffset(11, 14)
-	userLogo.BackgroundColor3 = Color3.fromRGB(16, 19, 32)
-	userLogo.Text = 'A'
-	userLogo.TextSize = 20
-	userLogo.FontFace = uipallet.FontSemiBold
-	userLogo.Parent = userCard
-	addCorner(userLogo, UDim.new(0, 8))
-	bindAccent(userLogo, 'TextColor3', nil, nil, 'text')
-	local userName = Instance.new('TextLabel')
-	userName.Size = UDim2.new(1, -58, 0, 20)
-	userName.Position = UDim2.fromOffset(54, 13)
-	userName.BackgroundTransparency = 1
-	userName.Text = 'Aether User'
-	userName.TextXAlignment = Enum.TextXAlignment.Left
-	userName.TextColor3 = uipallet.Text
-	userName.TextSize = 12
-	userName.FontFace = uipallet.FontSemiBold
-	userName.Parent = userCard
-	local userSub = userName:Clone()
-	userSub.Position = UDim2.fromOffset(54, 33)
-	userSub.Text = 'v'..tostring(mainapi.Version)
-	userSub.TextColor3 = getMutedText(0.44)
-	userSub.TextSize = 10
-	userSub.FontFace = uipallet.Font
-	userSub.Parent = userCard
+	-- Column A: Saved Configs
+	local panelSaved, _ = makePanel('SavedConfigs', 0, 12, COL_A_W, -6)
 
-	local contentLeft = 212
-	local headerIcon = Instance.new('TextLabel')
-	headerIcon.Name = 'HeaderIcon'
-	headerIcon.Size = UDim2.fromOffset(34, 34)
-	headerIcon.Position = UDim2.fromOffset(contentLeft, 22)
-	headerIcon.BackgroundTransparency = 1
-	headerIcon.Text = '▣'
-	headerIcon.TextSize = 28
-	headerIcon.FontFace = uipallet.Font
-	headerIcon.Parent = manager
-	bindAccent(headerIcon, 'TextColor3', nil, nil, 'text')
+	-- Column B: Community
+	local panelCommunity, _ = makePanel('CommunityConfigs', COL_A_W, 18, COL_B_W, -6)
 
-	local title = Instance.new('TextLabel')
-	title.Name = 'Title'
-	title.Size = UDim2.new(0.52, -30, 0, 32)
-	title.Position = UDim2.fromOffset(contentLeft + 42, 18)
-	title.BackgroundTransparency = 1
-	title.Text = 'Community Config Manager'
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextColor3 = uipallet.Text
-	title.TextSize = 22
-	title.FontFace = uipallet.FontSemiBold
-	title.Parent = manager
+	-- Column C: Preview
+	local panelPreview, _ = makePanel('ConfigPreview', COL_A_W + COL_B_W, 24, COL_C_W, -24)
 
-	local subtitle = title:Clone()
-	subtitle.Name = 'Subtitle'
-	subtitle.Size = UDim2.new(0.58, -30, 0, 20)
-	subtitle.Position = UDim2.fromOffset(contentLeft + 43, 47)
-	subtitle.Text = 'Download, reinstall, delete, import and instantly apply community configs.'
-	subtitle.TextColor3 = getMutedText(0.42)
-	subtitle.TextSize = 12
-	subtitle.FontFace = uipallet.Font
-	subtitle.Parent = manager
+	-- ── Panel header helper ───────────────────────────────────────────────
+	local function makePanelHeader(panel, icon, labelText, countDefault)
+		local hdr = Instance.new('Frame')
+		hdr.Name = 'PanelHeader'
+		hdr.Size = UDim2.new(1, 0, 0, 44)
+		hdr.BackgroundTransparency = 1
+		hdr.Parent = panel
 
-	local status = Instance.new('TextLabel')
-	status.Name = 'StatusPill'
-	status.Size = UDim2.fromOffset(286, 30)
-	status.Position = UDim2.new(1, -382, 0, 24)
-	status.BackgroundColor3 = Color3.fromRGB(10, 14, 25)
-	status.Text = '⚡  Switching configs applies modules instantly.  ●'
-	status.TextColor3 = color.Dark(uipallet.Text, 0.10)
-	status.TextSize = 11
-	status.FontFace = uipallet.Font
-	status.Parent = manager
-	addCorner(status, UDim.new(0, 9))
-	local statusStroke = Instance.new('UIStroke')
-	statusStroke.Transparency = 0.50
-	statusStroke.Parent = status
-	bindAccent(statusStroke, 'Color', 0.90, 0.55)
+		local ico = Instance.new('TextLabel')
+		ico.Size = UDim2.fromOffset(22, 44)
+		ico.Position = UDim2.fromOffset(14, 0)
+		ico.BackgroundTransparency = 1
+		ico.Text = icon
+		ico.TextSize = 15
+		ico.FontFace = uipallet.Font
+		ico.Parent = hdr
+		bindAccent(ico, 'TextColor3', nil, nil, 'text')
 
-	local close = Instance.new('TextButton')
-	close.Name = 'Close'
-	close.Size = UDim2.fromOffset(38, 30)
-	close.Position = UDim2.new(1, -56, 0, 24)
-	close.BackgroundColor3 = Color3.fromRGB(13, 17, 29)
-	close.AutoButtonColor = false
-	close.Text = '×'
-	close.TextColor3 = getMutedText(0.20)
-	close.TextSize = 24
-	close.FontFace = uipallet.Font
-	close.Parent = manager
-	addCorner(close, UDim.new(0, 9))
+		local lbl = Instance.new('TextLabel')
+		lbl.Size = UDim2.new(1, -100, 1, 0)
+		lbl.Position = UDim2.fromOffset(38, 0)
+		lbl.BackgroundTransparency = 1
+		lbl.Text = labelText
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.TextColor3 = uipallet.Text
+		lbl.TextSize = 13
+		lbl.FontFace = uipallet.FontSemiBold
+		lbl.Parent = hdr
 
-	local function makePane(name, titleText, position, size)
-		local pane = Instance.new('Frame')
-		pane.Name = name
-		pane.Position = position
-		pane.Size = size
-		pane.BackgroundColor3 = Color3.fromRGB(10, 13, 24)
-		pane.ClipsDescendants = true
-		pane.Parent = manager
-		addCorner(pane, UDim.new(0, 10))
-		local paneStroke = Instance.new('UIStroke')
-		paneStroke.Color = Color3.fromRGB(43, 50, 77)
-		paneStroke.Transparency = 0.18
-		paneStroke.Parent = pane
-		local glow = Instance.new('Frame')
-		glow.Name = 'TopGlow'
-		glow.Size = UDim2.new(1, 0, 0, 1)
-		glow.BorderSizePixel = 0
-		glow.BackgroundTransparency = 0.15
-		glow.Parent = pane
-		bindAccent(glow, 'BackgroundColor3', 0.92, 0.60)
-		local label = Instance.new('TextLabel')
-		label.Name = 'PaneTitle'
-		label.Size = UDim2.new(1, -92, 0, 28)
-		label.Position = UDim2.fromOffset(16, 14)
-		label.BackgroundTransparency = 1
-		label.Text = titleText
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextColor3 = uipallet.Text
-		label.TextSize = 14
-		label.FontFace = uipallet.FontSemiBold
-		label.Parent = pane
-		local count = Instance.new('TextLabel')
-		count.Name = 'Count'
-		count.Size = UDim2.fromOffset(58, 24)
-		count.Position = UDim2.new(1, -72, 0, 13)
-		count.BackgroundColor3 = Color3.fromRGB(15, 19, 32)
-		count.Text = '0 / 0'
-		count.TextColor3 = getMutedText(0.22)
-		count.TextSize = 11
-		count.FontFace = uipallet.Font
-		count.Parent = pane
-		addCorner(count, UDim.new(0, 7))
-		return pane, count
+		local divLine = Instance.new('Frame')
+		divLine.Size = UDim2.new(1, -28, 0, 1)
+		divLine.Position = UDim2.fromOffset(14, 43)
+		divLine.BackgroundColor3 = BORDER
+		divLine.BackgroundTransparency = 0.30
+		divLine.BorderSizePixel = 0
+		divLine.Parent = hdr
+
+		local cnt = Instance.new('TextLabel')
+		cnt.Name = 'Count'
+		cnt.Size = UDim2.fromOffset(56, 22)
+		cnt.Position = UDim2.new(1, -68, 0, 11)
+		cnt.BackgroundColor3 = CARD
+		cnt.Text = countDefault or '0'
+		cnt.TextColor3 = getMuted(0.24)
+		cnt.TextSize = 11
+		cnt.FontFace = uipallet.Font
+		cnt.Parent = hdr
+		addCorner(cnt, UDim.new(0, 6))
+
+		return hdr, cnt
 	end
 
-	local savedPane, savedCount = makePane('SavedConfigs', '▱  Saved Configs', UDim2.fromOffset(contentLeft, 86), UDim2.new(0.31, -6, 1, -174))
-	local communityPane, communityCount = makePane('CommunityConfigs', '☁  Community Configs', UDim2.new(0.50, -18, 0, 86), UDim2.new(0.24, -8, 1, -174))
-	local previewPane, previewCount = makePane('ConfigPreview', '▤  Config Preview', UDim2.new(0.74, -8, 0, 86), UDim2.new(0.26, -14, 1, -174))
+	local _, savedCount = makePanelHeader(panelSaved, '▱', 'Saved Configs')
+	local _, communityCount = makePanelHeader(panelCommunity, '☁', 'Community')
+	local _, previewCount = makePanelHeader(panelPreview, '▤', 'Preview')
 	previewCount.Text = 'LIVE'
 	bindAccent(previewCount, 'TextColor3', nil, nil, 'text')
+	previewCount.BackgroundColor3 = getAccentBg(0.18)
+	bindAccent(previewCount, 'BackgroundColor3', 0.18, nil, 'bg')
 
-	local function makeList(parent, bottomGap)
-		local list = Instance.new('ScrollingFrame')
-		list.Name = 'List'
-		list.Size = UDim2.new(1, -24, 1, -(bottomGap or 64))
-		list.Position = UDim2.fromOffset(12, 52)
-		list.BackgroundTransparency = 1
-		list.BorderSizePixel = 0
-		list.ScrollBarThickness = 3
-		list.ScrollBarImageTransparency = 0.15
-		list.CanvasSize = UDim2.new()
-		list.Parent = parent
-		bindAccent(list, 'ScrollBarImageColor3', nil, nil, 'text')
+	-- ── Scrollable list helper ────────────────────────────────────────────
+	local function makeList(parent, topOffset, bottomGap)
+		local sf = Instance.new('ScrollingFrame')
+		sf.Name = 'List'
+		sf.Size = UDim2.new(1, -20, 1, -(topOffset + (bottomGap or 52)))
+		sf.Position = UDim2.fromOffset(10, topOffset)
+		sf.BackgroundTransparency = 1
+		sf.BorderSizePixel = 0
+		sf.ScrollBarThickness = 3
+		sf.ScrollBarImageTransparency = 0.12
+		sf.CanvasSize = UDim2.new()
+		sf.Parent = parent
+		bindAccent(sf, 'ScrollBarImageColor3', nil, nil, 'text')
+
 		local layout = Instance.new('UIListLayout')
-		layout.Padding = UDim.new(0, 9)
+		layout.Padding = UDim.new(0, 7)
 		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		layout.Parent = list
-		return list, layout
+		layout.Parent = sf
+
+		return sf, layout
 	end
 
-	local savedList, savedLayout = makeList(savedPane, 104)
-	local communityList, communityLayout = makeList(communityPane, 106)
-	local previewList, previewLayout = makeList(previewPane, 64)
-
-	local savedSearch = Instance.new('TextBox')
-	savedSearch.Name = 'SearchSavedConfigs'
-	savedSearch.Size = UDim2.new(1, -24, 0, 38)
-	savedSearch.Position = UDim2.new(0, 12, 1, -48)
-	savedSearch.BackgroundColor3 = Color3.fromRGB(12, 16, 28)
-	savedSearch.ClearTextOnFocus = false
-	savedSearch.PlaceholderText = 'Search saved configs...'
-	savedSearch.Text = ''
-	savedSearch.TextColor3 = uipallet.Text
-	savedSearch.PlaceholderColor3 = getMutedText(0.46)
-	savedSearch.TextSize = 12
-	savedSearch.TextXAlignment = Enum.TextXAlignment.Center
-	savedSearch.FontFace = uipallet.Font
-	savedSearch.Parent = savedPane
-	addCorner(savedSearch, UDim.new(0, 8))
-	local searchStroke = Instance.new('UIStroke')
-	searchStroke.Color = Color3.fromRGB(38, 45, 70)
-	searchStroke.Transparency = 0.20
-	searchStroke.Parent = savedSearch
-
-	local importBox = Instance.new('TextBox')
-	importBox.Name = 'JSONConfig'
-	importBox.Size = UDim2.new(0.19, -8, 0, 44)
-	importBox.Position = UDim2.new(0.635, 0, 1, -58)
-	importBox.BackgroundColor3 = Color3.fromRGB(12, 16, 28)
-	importBox.ClearTextOnFocus = false
-	importBox.PlaceholderText = 'Paste JSON config...'
-	importBox.Text = ''
-	importBox.TextColor3 = uipallet.Text
-	importBox.PlaceholderColor3 = getMutedText(0.46)
-	importBox.TextSize = 12
-	importBox.TextXAlignment = Enum.TextXAlignment.Center
-	importBox.FontFace = uipallet.Font
-	importBox.Parent = manager
-	addCorner(importBox, UDim.new(0, 8))
-	local importStroke = Instance.new('UIStroke')
-	importStroke.Color = Color3.fromRGB(38, 45, 70)
-	importStroke.Transparency = 0.20
-	importStroke.Parent = importBox
+	local savedList, savedLayout = makeList(panelSaved, 52, 96)
+	local communityList, communityLayout = makeList(panelCommunity, 52, 52)
+	local previewList, previewLayout = makeList(panelPreview, 52, 10)
 
 	local function updateCanvas(list, layout)
 		task.defer(function()
 			if list and list.Parent then
-				list.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 6)
+				list.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 8)
 			end
 		end)
 	end
 
-	local function createButton(parent, text, position, size, callback, style)
-		local isDanger = style == 'danger'
+	-- ── Search box (saved panel) ──────────────────────────────────────────
+	local searchBox = Instance.new('TextBox')
+	searchBox.Name = 'Search'
+	searchBox.Size = UDim2.new(1, -20, 0, 34)
+	searchBox.Position = UDim2.new(0, 10, 1, -44)
+	searchBox.BackgroundColor3 = CARD
+	searchBox.ClearTextOnFocus = false
+	searchBox.PlaceholderText = '⌕  Search saved...'
+	searchBox.Text = ''
+	searchBox.TextColor3 = uipallet.Text
+	searchBox.PlaceholderColor3 = getMuted(0.45)
+	searchBox.TextSize = 12
+	searchBox.TextXAlignment = Enum.TextXAlignment.Left
+	searchBox.FontFace = uipallet.Font
+	searchBox.Parent = panelSaved
+	addCorner(searchBox, UDim.new(0, 7))
+
+	local searchStroke = Instance.new('UIStroke')
+	searchStroke.Color = BORDER
+	searchStroke.Transparency = 0.18
+	searchStroke.Parent = searchBox
+
+	-- Pad text
+	local searchPad = Instance.new('UIPadding')
+	searchPad.PaddingLeft = UDim.new(0, 10)
+	searchPad.Parent = searchBox
+
+	-- ── Import box (bottom bar, spans preview panel) ──────────────────────
+	local importBox = Instance.new('TextBox')
+	importBox.Name = 'ImportJSON'
+	importBox.Size = UDim2.new(COL_B_W + COL_C_W, -30, 0, 38)
+	importBox.Position = UDim2.new(COL_A_W, 18, 1, -(BOTTOM_BAR_H - 10))
+	importBox.BackgroundColor3 = CARD
+	importBox.ClearTextOnFocus = false
+	importBox.PlaceholderText = '⌨  Paste JSON config to import...'
+	importBox.Text = ''
+	importBox.TextColor3 = uipallet.Text
+	importBox.PlaceholderColor3 = getMuted(0.45)
+	importBox.TextSize = 12
+	importBox.TextXAlignment = Enum.TextXAlignment.Left
+	importBox.FontFace = uipallet.Font
+	importBox.Parent = manager
+	addCorner(importBox, UDim.new(0, 8))
+
+	local importStroke = Instance.new('UIStroke')
+	importStroke.Color = BORDER
+	importStroke.Transparency = 0.22
+	importStroke.Parent = importBox
+
+	local importPad = Instance.new('UIPadding')
+	importPad.PaddingLeft = UDim.new(0, 12)
+	importPad.Parent = importBox
+
+	-- ── Bottom action bar ─────────────────────────────────────────────────
+	local bottomBar = Instance.new('Frame')
+	bottomBar.Name = 'BottomBar'
+	bottomBar.Size = UDim2.new(1, 0, 0, BOTTOM_BAR_H)
+	bottomBar.Position = UDim2.new(0, 0, 1, -BOTTOM_BAR_H)
+	bottomBar.BackgroundColor3 = SURFACE
+	bottomBar.BorderSizePixel = 0
+	bottomBar.Parent = manager
+
+	local bottomDivider = Instance.new('Frame')
+	bottomDivider.Size = UDim2.new(1, 0, 0, 1)
+	bottomDivider.BackgroundColor3 = BORDER
+	bottomDivider.BackgroundTransparency = 0.25
+	bottomDivider.BorderSizePixel = 0
+	bottomDivider.Parent = bottomBar
+
+	-- ── Button factory ────────────────────────────────────────────────────
+	local function makeBtn(parent, label, x, y, w, h, style, callback)
 		local isPrimary = style == 'primary'
-		local button = Instance.new('TextButton')
-		button.Name = text:gsub('%W+', '')
-		button.Size = size
-		button.Position = position
-		button.BackgroundColor3 = isDanger and Color3.fromRGB(42, 12, 22) or (isPrimary and getGuiAccent(0.82, 0.72) or Color3.fromRGB(14, 18, 31))
-		button.AutoButtonColor = false
-		button.Text = text
-		button.TextColor3 = isDanger and Color3.fromRGB(255, 82, 98) or uipallet.Text
-		button.TextSize = 13
-		button.FontFace = isPrimary and uipallet.FontSemiBold or uipallet.Font
-		button.Parent = parent
-		addCorner(button, UDim.new(0, 8))
-		local buttonStroke = Instance.new('UIStroke')
-		buttonStroke.Color = isDanger and Color3.fromRGB(150, 38, 62) or getGuiAccent(0.95, 0.65)
-		buttonStroke.Transparency = isPrimary and 0.02 or 0.18
-		buttonStroke.Parent = button
-		if not isDanger then bindAccent(buttonStroke, 'Color', 0.95, 0.65) end
-		if isPrimary then bindAccent(button, 'BackgroundColor3', 0.82, 0.72) end
-		button.MouseEnter:Connect(function()
-			tween:Tween(button, uipallet.Tween, {
-				BackgroundColor3 = isDanger and Color3.fromRGB(58, 16, 30) or getGuiAccent(isPrimary and 1.02 or 0.76, 0.72)
-			})
-		end)
-		button.MouseLeave:Connect(function()
-			tween:Tween(button, uipallet.Tween, {
-				BackgroundColor3 = isDanger and Color3.fromRGB(42, 12, 22) or (isPrimary and getGuiAccent(0.82, 0.72) or Color3.fromRGB(14, 18, 31))
-			})
-		end)
-		button.MouseButton1Click:Connect(callback)
-		return button
-	end
+		local isDanger = style == 'danger'
+		local isGhost = style == 'ghost'
 
-	local function createTag(parent, text, x, y)
-		local tag = Instance.new('TextLabel')
-		tag.Name = text..'Tag'
-		tag.Size = UDim2.fromOffset(math.max(42, (#text * 6) + 18), 20)
-		tag.Position = UDim2.fromOffset(x, y or 42)
-		tag.BackgroundColor3 = getGuiAccentBackground(0.18)
-		tag.Text = text
-		tag.TextColor3 = getGuiAccentText()
-		tag.TextSize = 10
-		tag.FontFace = uipallet.Font
-		tag.Parent = parent
-		addCorner(tag, UDim.new(0, 6))
-		bindAccent(tag, 'BackgroundColor3', 0.18, nil, 'background')
-		bindAccent(tag, 'TextColor3', nil, nil, 'text')
-		return x + tag.Size.X.Offset + 6
-	end
+		local btn = Instance.new('TextButton')
+		btn.Name = label:gsub('%W+', '')
+		btn.Size = UDim2.fromOffset(w or 120, h or 34)
+		btn.Position = UDim2.fromOffset(x, y)
+		btn.AutoButtonColor = false
+		btn.Text = label
+		btn.TextSize = 12
+		btn.FontFace = isPrimary and uipallet.FontSemiBold or uipallet.Font
+		btn.Parent = parent
+		addCorner(btn, UDim.new(0, 7))
 
-	local function createStatusPill(parent, text, position, width, accent)
-		local pill = Instance.new('TextLabel')
-		pill.Name = text:gsub('%W+', '')..'Pill'
-		pill.Size = UDim2.fromOffset(width or 58, 20)
-		pill.Position = position
-		pill.BackgroundColor3 = accent and getGuiAccentBackground(0.18) or Color3.fromRGB(15, 19, 32)
-		pill.Text = text
-		pill.TextColor3 = accent and getGuiAccentText() or getMutedText(0.22)
-		pill.TextSize = 10
-		pill.FontFace = uipallet.FontSemiBold
-		pill.Parent = parent
-		addCorner(pill, UDim.new(0, 6))
-		if accent then
-			bindAccent(pill, 'BackgroundColor3', 0.18, nil, 'background')
-			bindAccent(pill, 'TextColor3', nil, nil, 'text')
+		if isPrimary then
+			btn.BackgroundColor3 = getAccent(0.82, 0.72)
+			btn.TextColor3 = mainapi:TextColor(mainapi.GUIColor.Hue, mainapi.GUIColor.Sat, mainapi.GUIColor.Value)
+			bindAccent(btn, 'BackgroundColor3', 0.82, 0.72)
+			local s = Instance.new('UIStroke'); s.Transparency = 0.04; s.Parent = btn
+			bindAccent(s, 'Color', 1.0, 0.90)
+		elseif isDanger then
+			btn.BackgroundColor3 = Color3.fromRGB(40, 11, 20)
+			btn.TextColor3 = Color3.fromRGB(248, 80, 96)
+			local s = Instance.new('UIStroke'); s.Color = Color3.fromRGB(140, 35, 58); s.Transparency = 0.14; s.Parent = btn
+		elseif isGhost then
+			btn.BackgroundColor3 = CARD
+			btn.TextColor3 = getMuted(0.16)
+			local s = Instance.new('UIStroke'); s.Color = BORDER; s.Transparency = 0.20; s.Parent = btn
+		else
+			btn.BackgroundColor3 = Color3.fromRGB(14, 17, 28)
+			btn.TextColor3 = getMuted(0.12)
+			local s = Instance.new('UIStroke'); s.Color = BORDER; s.Transparency = 0.22; s.Parent = btn
 		end
-		return pill
+
+		btn.MouseEnter:Connect(function()
+			tween:Tween(btn, uipallet.Tween, {
+				BackgroundColor3 = isPrimary and getAccent(1.0, 0.80) or isDanger and Color3.fromRGB(55, 15, 28) or isGhost and Color3.fromRGB(18, 22, 36) or Color3.fromRGB(18, 22, 35)
+			})
+		end)
+		btn.MouseLeave:Connect(function()
+			tween:Tween(btn, uipallet.Tween, {
+				BackgroundColor3 = isPrimary and getAccent(0.82, 0.72) or isDanger and Color3.fromRGB(40, 11, 20) or isGhost and CARD or Color3.fromRGB(14, 17, 28)
+			})
+		end)
+		if callback then btn.MouseButton1Click:Connect(callback) end
+		return btn
 	end
 
+	-- ── Tag helper ────────────────────────────────────────────────────────
+	local function makeTag(parent, text, x, y)
+		local tag = Instance.new('TextLabel')
+		local tw = math.max(38, (#text * 6) + 16)
+		tag.Size = UDim2.fromOffset(tw, 18)
+		tag.Position = UDim2.fromOffset(x, y)
+		tag.BackgroundColor3 = getAccentBg(0.17)
+		tag.Text = text:upper()
+		tag.TextSize = 9
+		tag.FontFace = uipallet.FontSemiBold
+		tag.Parent = parent
+		addCorner(tag, UDim.new(0, 5))
+		bindAccent(tag, 'BackgroundColor3', 0.17, nil, 'bg')
+		bindAccent(tag, 'TextColor3', nil, nil, 'text')
+		return x + tw + 5
+	end
+
+	local function makeStatusPill(parent, text, pos, w, accent)
+		local p = Instance.new('TextLabel')
+		p.Size = UDim2.fromOffset(w or 52, 18)
+		p.Position = pos
+		p.BackgroundColor3 = accent and getAccentBg(0.18) or CARD
+		p.Text = text
+		p.TextColor3 = accent and getAccentText() or getMuted(0.26)
+		p.TextSize = 9
+		p.FontFace = uipallet.FontSemiBold
+		p.Parent = parent
+		addCorner(p, UDim.new(0, 5))
+		if accent then
+			bindAccent(p, 'BackgroundColor3', 0.18, nil, 'bg')
+			bindAccent(p, 'TextColor3', nil, nil, 'text')
+		end
+		return p
+	end
+
+	-- ── Row factory ───────────────────────────────────────────────────────
 	local function createRow(parent, name, selected, callback, bundled)
-		local meta = configMetadata[name] or {Title = name, Initials = string.upper(string.sub(name, 1, math.min(4, #name))), Description = bundled and 'Community configuration.' or 'Saved configuration.', Tags = {}}
+		local meta = configMetadata[name] or {
+			Title = name, Initials = string.upper(name:sub(1, math.min(3, #name))),
+			Description = bundled and 'Community configuration.' or 'Saved configuration.', Tags = {}
+		}
 		local summary = getConfigSummary(name, bundled)
+
+		local ROW_H = bundled and 76 or 64
 		local row = Instance.new('TextButton')
 		row.Name = name
-		row.Size = UDim2.new(1, -2, 0, bundled and 82 or 72)
-		row.BackgroundColor3 = selected and getGuiAccentBackground(0.20) or Color3.fromRGB(11, 14, 25)
+		row.Size = UDim2.new(1, -2, 0, ROW_H)
+		row.BackgroundColor3 = selected and getAccentBg(0.20) or CARD
 		row.AutoButtonColor = false
 		row.Text = ''
 		row.Parent = parent
-		addCorner(row, UDim.new(0, 9))
+		addCorner(row, UDim.new(0, 8))
+
 		local rowStroke = Instance.new('UIStroke')
-		rowStroke.Color = selected and getGuiAccentText() or Color3.fromRGB(42, 49, 76)
-		rowStroke.Transparency = selected and 0.02 or 0.24
+		rowStroke.Color = selected and getAccentText() or BORDER
+		rowStroke.Transparency = selected and 0.04 or 0.26
 		rowStroke.Parent = row
 		if selected then
-			bindAccent(row, 'BackgroundColor3', 0.20, nil, 'background')
+			bindAccent(row, 'BackgroundColor3', 0.20, nil, 'bg')
 			bindAccent(rowStroke, 'Color', nil, nil, 'text')
 		end
 
-		local avatar = Instance.new('TextLabel')
-		avatar.Name = 'Avatar'
-		avatar.Size = UDim2.fromOffset(42, 42)
-		avatar.Position = UDim2.fromOffset(12, 15)
-		avatar.BackgroundColor3 = getGuiAccent(0.80, 0.78)
-		avatar.Text = bundled and (meta.Initials or string.upper(string.sub(name, 1, math.min(4, #name)))) or '▱'
-		avatar.TextColor3 = mainapi:TextColor(mainapi.GUIColor.Hue, mainapi.GUIColor.Sat, mainapi.GUIColor.Value)
-		avatar.TextSize = bundled and 13 or 22
-		avatar.FontFace = uipallet.FontSemiBold
-		avatar.Parent = row
-		addCorner(avatar, UDim.new(0, 8))
-		bindAccent(avatar, 'BackgroundColor3', 0.80, 0.78)
+		-- Avatar badge
+		local av = Instance.new('TextLabel')
+		av.Size = UDim2.fromOffset(38, 38)
+		av.Position = UDim2.fromOffset(10, (ROW_H - 38) / 2)
+		av.BackgroundColor3 = getAccent(0.80, 0.75)
+		av.Text = bundled and (meta.Initials or name:upper():sub(1, 3)) or '▱'
+		av.TextColor3 = mainapi:TextColor(mainapi.GUIColor.Hue, mainapi.GUIColor.Sat, mainapi.GUIColor.Value)
+		av.TextSize = bundled and 12 or 18
+		av.FontFace = uipallet.FontSemiBold
+		av.Parent = row
+		addCorner(av, UDim.new(0, 7))
+		bindAccent(av, 'BackgroundColor3', 0.80, 0.75)
 
-		local label = Instance.new('TextLabel')
-		label.Name = 'Title'
-		label.Size = UDim2.new(1, -148, 0, 22)
-		label.Position = UDim2.fromOffset(66, 13)
-		label.BackgroundTransparency = 1
-		label.Text = meta.Title or name
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextColor3 = uipallet.Text
-		label.TextSize = 14
-		label.TextTruncate = Enum.TextTruncate.AtEnd
-		label.FontFace = uipallet.FontSemiBold
-		label.Parent = row
+		local nameLabel = Instance.new('TextLabel')
+		nameLabel.Size = UDim2.new(1, -106, 0, 19)
+		nameLabel.Position = UDim2.fromOffset(58, bundled and 10 or 14)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Text = meta.Title or name
+		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+		nameLabel.TextColor3 = selected and uipallet.Text or getMuted(0.06)
+		nameLabel.TextSize = 13
+		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+		nameLabel.FontFace = uipallet.FontSemiBold
+		nameLabel.Parent = row
 
-		local desc = Instance.new('TextLabel')
-		desc.Name = 'Description'
-		desc.Size = UDim2.new(1, -148, 0, 18)
-		desc.Position = UDim2.fromOffset(66, 34)
-		desc.BackgroundTransparency = 1
-		desc.Text = bundled and 'by AetherCore Team' or (name == 'default' and 'Default configuration' or 'Saved configuration')
-		desc.TextXAlignment = Enum.TextXAlignment.Left
-		desc.TextColor3 = getMutedText(0.39)
-		desc.TextSize = 11
-		desc.TextTruncate = Enum.TextTruncate.AtEnd
-		desc.FontFace = uipallet.Font
-		desc.Parent = row
+		local subLabel = Instance.new('TextLabel')
+		subLabel.Size = UDim2.new(1, -106, 0, 14)
+		subLabel.Position = UDim2.fromOffset(58, bundled and 29 or 33)
+		subLabel.BackgroundTransparency = 1
+		subLabel.Text = bundled and 'AetherCore Team' or (name == 'default' and 'Default config' or 'Local saved config')
+		subLabel.TextXAlignment = Enum.TextXAlignment.Left
+		subLabel.TextColor3 = getMuted(0.40)
+		subLabel.TextSize = 10
+		subLabel.TextTruncate = Enum.TextTruncate.AtEnd
+		subLabel.FontFace = uipallet.Font
+		subLabel.Parent = row
 
-		local countText = Instance.new('TextLabel')
-		countText.Name = 'ModuleCount'
-		countText.Size = UDim2.fromOffset(92, 20)
-		countText.Position = UDim2.new(1, -102, 0, bundled and 42 or 27)
-		countText.BackgroundTransparency = 1
-		countText.Text = summary.Count..' modules'
-		countText.TextXAlignment = Enum.TextXAlignment.Right
-		countText.TextColor3 = getMutedText(0.24)
-		countText.TextSize = 11
-		countText.FontFace = uipallet.Font
-		countText.Parent = row
+		local modCount = Instance.new('TextLabel')
+		modCount.Size = UDim2.fromOffset(80, 14)
+		modCount.Position = UDim2.new(1, -88, 0, bundled and 52 or 26)
+		modCount.BackgroundTransparency = 1
+		modCount.Text = summary.Count..' modules'
+		modCount.TextXAlignment = Enum.TextXAlignment.Right
+		modCount.TextColor3 = getMuted(0.30)
+		modCount.TextSize = 10
+		modCount.FontFace = uipallet.Font
+		modCount.Parent = row
 
 		if bundled then
-			local x = 66
-			for _, tagText in meta.Tags do
-				x = createTag(row, tagText, x, 56)
-			end
+			local x = 58
+			for _, t in meta.Tags do x = makeTag(row, t, x, 48) end
 			local installed = isfile(getConfigPath(name))
-			createStatusPill(row, installed and 'INSTALLED' or 'AVAILABLE', UDim2.new(1, -82, 0, 12), 68, installed)
+			makeStatusPill(row, installed and 'INSTALLED' or 'AVAILABLE', UDim2.new(1, -76, 0, 9), 64, installed)
 		elseif selected then
-			createStatusPill(row, 'ACTIVE', UDim2.new(1, -76, 0, 10), 62, true)
+			makeStatusPill(row, 'ACTIVE', UDim2.new(1, -68, 0, 9), 56, true)
 		end
 
 		row.MouseEnter:Connect(function()
 			if not selected then
-				tween:Tween(row, uipallet.Tween, {BackgroundColor3 = Color3.fromRGB(14, 18, 31)})
+				tween:Tween(row, uipallet.Tween, {BackgroundColor3 = Color3.fromRGB(16, 20, 32)})
 			end
 		end)
 		row.MouseLeave:Connect(function()
 			if not selected then
-				tween:Tween(row, uipallet.Tween, {BackgroundColor3 = Color3.fromRGB(11, 14, 25)})
+				tween:Tween(row, uipallet.Tween, {BackgroundColor3 = CARD})
 			end
 		end)
 		row.MouseButton1Click:Connect(callback)
 		return row
 	end
 
-	local function makePreviewText(parent, text, size, height, bold, muted)
-		local label = Instance.new('TextLabel')
-		label.Size = UDim2.new(1, -2, 0, height)
-		label.BackgroundTransparency = 1
-		label.Text = text
-		label.TextColor3 = muted and getMutedText(0.34) or uipallet.Text
-		label.TextSize = size
-		label.TextWrapped = true
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextYAlignment = Enum.TextYAlignment.Top
-		label.FontFace = bold and uipallet.FontSemiBold or uipallet.Font
-		label.Parent = parent
-		return label
-	end
-
+	-- ── Preview pane helpers ──────────────────────────────────────────────
 	local function makePreviewLine(parent, leftText, rightText, active)
 		local line = Instance.new('Frame')
-		line.Size = UDim2.new(1, -2, 0, 24)
+		line.Size = UDim2.new(1, -2, 0, 22)
 		line.BackgroundTransparency = 1
 		line.Parent = parent
+
 		local bullet = Instance.new('TextLabel')
-		bullet.Size = UDim2.fromOffset(18, 24)
+		bullet.Size = UDim2.fromOffset(16, 22)
 		bullet.BackgroundTransparency = 1
 		bullet.Text = '•'
-		bullet.TextSize = 15
+		bullet.TextSize = 13
 		bullet.FontFace = uipallet.FontSemiBold
 		bullet.Parent = line
-		bindAccent(bullet, 'TextColor3', nil, nil, 'text')
+		if active then bindAccent(bullet, 'TextColor3', nil, nil, 'text')
+		else bullet.TextColor3 = getMuted(0.40) end
+
 		local left = Instance.new('TextLabel')
-		left.Size = UDim2.new(1, -92, 1, 0)
-		left.Position = UDim2.fromOffset(20, 0)
+		left.Size = UDim2.new(1, -86, 1, 0)
+		left.Position = UDim2.fromOffset(18, 0)
 		left.BackgroundTransparency = 1
 		left.Text = leftText
 		left.TextXAlignment = Enum.TextXAlignment.Left
-		left.TextColor3 = active and uipallet.Text or getMutedText(0.34)
-		left.TextSize = 12
+		left.TextColor3 = active and getMuted(0.08) or getMuted(0.36)
+		left.TextSize = 11
 		left.TextTruncate = Enum.TextTruncate.AtEnd
 		left.FontFace = uipallet.Font
 		left.Parent = line
+
 		local right = Instance.new('TextLabel')
-		right.Size = UDim2.fromOffset(70, 24)
-		right.Position = UDim2.new(1, -70, 0, 0)
+		right.Size = UDim2.fromOffset(68, 22)
+		right.Position = UDim2.new(1, -68, 0, 0)
 		right.BackgroundTransparency = 1
 		right.Text = rightText or ''
 		right.TextXAlignment = Enum.TextXAlignment.Right
-		right.TextColor3 = active and getGuiAccentText() or getMutedText(0.42)
-		right.TextSize = 11
+		right.TextColor3 = active and getAccentText() or getMuted(0.40)
+		right.TextSize = 10
 		right.FontFace = uipallet.Font
 		right.Parent = line
 		if active then bindAccent(right, 'TextColor3', nil, nil, 'text') end
 		return line
 	end
 
+	local function makePreviewSectionLabel(parent, text)
+		local lbl = Instance.new('TextLabel')
+		lbl.Size = UDim2.new(1, -2, 0, 26)
+		lbl.BackgroundTransparency = 1
+		lbl.Text = text
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.TextColor3 = getMuted(0.10)
+		lbl.TextSize = 12
+		lbl.FontFace = uipallet.FontSemiBold
+		lbl.Parent = parent
+	end
+
+	local function makePreviewNote(parent, text)
+		local lbl = Instance.new('TextLabel')
+		lbl.Size = UDim2.new(1, -2, 0, 32)
+		lbl.BackgroundTransparency = 1
+		lbl.Text = text
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.TextYAlignment = Enum.TextYAlignment.Top
+		lbl.TextColor3 = getMuted(0.40)
+		lbl.TextSize = 11
+		lbl.TextWrapped = true
+		lbl.FontFace = uipallet.Font
+		lbl.Parent = parent
+	end
+
+	-- ── Refresh preview ───────────────────────────────────────────────────
 	local function refreshPreview()
-		clearGuiObjects(previewList)
+		clearGui(previewList)
 		local name = previewMode == 'saved' and (selectedProfile or mainapi.Profile or 'default') or selectedCommunityConfig
 		local bundled = previewMode ~= 'saved'
-		local meta = bundled and (configMetadata[name] or {Title = name, Initials = string.upper(string.sub(name, 1, math.min(4, #name))), Description = 'Community configuration.', Tags = {}}) or {Title = name, Initials = '▱', Description = name == 'default' and 'Default configuration.' or 'Saved local configuration.', Tags = {}}
+		local meta = bundled and (configMetadata[name] or {
+			Title = name, Initials = name:upper():sub(1, 3), Description = 'Community configuration.', Tags = {}
+		}) or {
+			Title = name, Initials = '▱',
+			Description = name == 'default' and 'Default configuration.' or 'Your saved local configuration.',
+			Tags = {}
+		}
 		local summary = getConfigSummary(name, bundled)
 
-		local previewHeader = Instance.new('Frame')
-		previewHeader.Size = UDim2.new(1, -2, 0, 104)
-		previewHeader.BackgroundTransparency = 1
-		previewHeader.Parent = previewList
-		local bigIcon = Instance.new('TextLabel')
-		bigIcon.Size = UDim2.fromOffset(54, 54)
-		bigIcon.Position = UDim2.fromOffset(0, 2)
-		bigIcon.BackgroundColor3 = getGuiAccent(0.82, 0.78)
-		bigIcon.Text = bundled and (meta.Initials or string.upper(string.sub(name, 1, math.min(4, #name)))) or '▱'
-		bigIcon.TextColor3 = mainapi:TextColor(mainapi.GUIColor.Hue, mainapi.GUIColor.Sat, mainapi.GUIColor.Value)
-		bigIcon.TextSize = bundled and 15 or 26
-		bigIcon.FontFace = uipallet.FontSemiBold
-		bigIcon.Parent = previewHeader
-		addCorner(bigIcon, UDim.new(0, 10))
-		bindAccent(bigIcon, 'BackgroundColor3', 0.82, 0.78)
-		local headerTitle = Instance.new('TextLabel')
-		headerTitle.Size = UDim2.new(1, -64, 0, 24)
-		headerTitle.Position = UDim2.fromOffset(66, 2)
-		headerTitle.BackgroundTransparency = 1
-		headerTitle.Text = meta.Title or name
-		headerTitle.TextXAlignment = Enum.TextXAlignment.Left
-		headerTitle.TextColor3 = uipallet.Text
-		headerTitle.TextSize = 16
-		headerTitle.FontFace = uipallet.FontSemiBold
-		headerTitle.Parent = previewHeader
-		local headerBy = headerTitle:Clone()
-		headerBy.Position = UDim2.fromOffset(66, 27)
-		headerBy.Text = bundled and 'by AetherCore Team' or 'local saved config'
-		headerBy.TextColor3 = getMutedText(0.40)
-		headerBy.TextSize = 11
-		headerBy.FontFace = uipallet.Font
-		headerBy.Parent = previewHeader
-		local x = 66
-		for _, tagText in meta.Tags do
-			x = createTag(previewHeader, tagText, x, 51)
-		end
-		local description = Instance.new('TextLabel')
-		description.Size = UDim2.new(1, -2, 0, 40)
-		description.Position = UDim2.fromOffset(0, 68)
-		description.BackgroundTransparency = 1
-		description.Text = meta.Description
-		description.TextColor3 = getMutedText(0.28)
-		description.TextSize = 12
-		description.TextWrapped = true
-		description.TextXAlignment = Enum.TextXAlignment.Left
-		description.TextYAlignment = Enum.TextYAlignment.Top
-		description.FontFace = uipallet.Font
-		description.Parent = previewHeader
+		-- Header card inside preview
+		local hdrCard = Instance.new('Frame')
+		hdrCard.Size = UDim2.new(1, -2, 0, 96)
+		hdrCard.BackgroundColor3 = CARD
+		hdrCard.BorderSizePixel = 0
+		hdrCard.Parent = previewList
+		addCorner(hdrCard, UDim.new(0, 8))
 
-		makePreviewText(previewList, 'Modules ('..summary.Count..')', 13, 26, true)
+		local bigAv = Instance.new('TextLabel')
+		bigAv.Size = UDim2.fromOffset(48, 48)
+		bigAv.Position = UDim2.fromOffset(12, 12)
+		bigAv.BackgroundColor3 = getAccent(0.82, 0.76)
+		bigAv.Text = bundled and (meta.Initials or name:upper():sub(1, 3)) or '▱'
+		bigAv.TextColor3 = mainapi:TextColor(mainapi.GUIColor.Hue, mainapi.GUIColor.Sat, mainapi.GUIColor.Value)
+		bigAv.TextSize = bundled and 14 or 22
+		bigAv.FontFace = uipallet.FontSemiBold
+		bigAv.Parent = hdrCard
+		addCorner(bigAv, UDim.new(0, 9))
+		bindAccent(bigAv, 'BackgroundColor3', 0.82, 0.76)
+
+		local bigTitle = Instance.new('TextLabel')
+		bigTitle.Size = UDim2.new(1, -74, 0, 22)
+		bigTitle.Position = UDim2.fromOffset(70, 10)
+		bigTitle.BackgroundTransparency = 1
+		bigTitle.Text = meta.Title or name
+		bigTitle.TextXAlignment = Enum.TextXAlignment.Left
+		bigTitle.TextColor3 = uipallet.Text
+		bigTitle.TextSize = 15
+		bigTitle.FontFace = uipallet.FontSemiBold
+		bigTitle.Parent = hdrCard
+
+		local bigBy = bigTitle:Clone()
+		bigBy.Position = UDim2.fromOffset(70, 32)
+		bigBy.Text = bundled and 'by AetherCore Team' or 'local config'
+		bigBy.TextColor3 = getMuted(0.40)
+		bigBy.TextSize = 10
+		bigBy.FontFace = uipallet.Font
+		bigBy.Parent = hdrCard
+
+		local descLabel = Instance.new('TextLabel')
+		descLabel.Size = UDim2.new(1, -24, 0, 30)
+		descLabel.Position = UDim2.fromOffset(12, 62)
+		descLabel.BackgroundTransparency = 1
+		descLabel.Text = meta.Description
+		descLabel.TextColor3 = getMuted(0.28)
+		descLabel.TextSize = 11
+		descLabel.TextWrapped = true
+		descLabel.TextXAlignment = Enum.TextXAlignment.Left
+		descLabel.TextYAlignment = Enum.TextYAlignment.Top
+		descLabel.FontFace = uipallet.Font
+		descLabel.Parent = hdrCard
+
+		-- Stats row
+		local statsFrame = Instance.new('Frame')
+		statsFrame.Size = UDim2.new(1, -2, 0, 46)
+		statsFrame.BackgroundColor3 = CARD
+		statsFrame.BorderSizePixel = 0
+		statsFrame.Parent = previewList
+		addCorner(statsFrame, UDim.new(0, 8))
+
+		local statLayout = Instance.new('UIListLayout')
+		statLayout.FillDirection = Enum.FillDirection.Horizontal
+		statLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		statLayout.Padding = UDim.new(0, 0)
+		statLayout.Parent = statsFrame
+
+		local statData = {
+			{'Total', tostring(summary.Count)},
+			{'Enabled', tostring(summary.Enabled)},
+			{'Keybinds', tostring(#summary.Keybinds)},
+		}
+		for i, sd in statData do
+			local seg = Instance.new('Frame')
+			seg.Size = UDim2.new(1 / #statData, 0, 1, 0)
+			seg.BackgroundTransparency = 1
+			seg.Parent = statsFrame
+			if i > 1 then
+				local sep = Instance.new('Frame')
+				sep.Size = UDim2.fromOffset(1, 26)
+				sep.AnchorPoint = Vector2.new(0, 0.5)
+				sep.Position = UDim2.new(0, 0, 0.5, -13)
+				sep.BackgroundColor3 = BORDER
+				sep.BackgroundTransparency = 0.30
+				sep.BorderSizePixel = 0
+				sep.Parent = seg
+			end
+			local val = Instance.new('TextLabel')
+			val.Size = UDim2.new(1, 0, 0, 20)
+			val.Position = UDim2.fromOffset(0, 6)
+			val.BackgroundTransparency = 1
+			val.Text = sd[2]
+			val.TextSize = 16
+			val.FontFace = uipallet.FontSemiBold
+			val.Parent = seg
+			bindAccent(val, 'TextColor3', nil, nil, 'text')
+
+			local valLbl = Instance.new('TextLabel')
+			valLbl.Size = UDim2.new(1, 0, 0, 14)
+			valLbl.Position = UDim2.fromOffset(0, 27)
+			valLbl.BackgroundTransparency = 1
+			valLbl.Text = sd[1]
+			valLbl.TextSize = 10
+			valLbl.TextColor3 = getMuted(0.34)
+			valLbl.FontFace = uipallet.Font
+			valLbl.Parent = seg
+		end
+
+		-- Module list
+		makePreviewSectionLabel(previewList, 'Active modules')
 		local shown = 0
-		for _, moduleName in summary.EnabledModules do
-			if shown >= 9 then break end
+		for _, mn in summary.EnabledModules do
+			if shown >= 10 then break end
 			shown += 1
-			makePreviewLine(previewList, moduleName, 'Enabled', true)
+			makePreviewLine(previewList, mn, 'ON', true)
 		end
 		if shown == 0 then
-			makePreviewText(previewList, summary.Exists and 'No enabled modules found in this config.' or 'Config data has not been downloaded yet.', 12, 36, false, true)
+			makePreviewNote(previewList, summary.Exists and 'No modules currently enabled.' or 'Config not downloaded yet. Use the buttons below to fetch it.')
 		end
 		if #summary.Modules > shown then
-			makePreviewText(previewList, '+'..tostring(#summary.Modules - shown)..' more module settings saved in this config.', 11, 24, false, true)
+			makePreviewNote(previewList, '+'..tostring(#summary.Modules - shown)..' more settings stored in this config.')
 		end
 
-		makePreviewText(previewList, 'Keybinds', 13, 28, true)
-		local keybindShown = 0
-		for _, bindData in summary.Keybinds do
-			if keybindShown >= 5 then break end
-			keybindShown += 1
-			makePreviewLine(previewList, bindData.Name, bindData.Bind, true)
+		-- Keybinds
+		if #summary.Keybinds > 0 then
+			makePreviewSectionLabel(previewList, 'Keybinds')
+			local kb = 0
+			for _, bd in summary.Keybinds do
+				if kb >= 6 then break end
+				kb += 1
+				makePreviewLine(previewList, bd.Name, bd.Bind, true)
+			end
 		end
-		if keybindShown == 0 then
-			makePreviewText(previewList, 'No keybinds found in this config.', 12, 28, false, true)
-		end
+
 		updateCanvas(previewList, previewLayout)
 	end
 
+	-- ── Main refresh ──────────────────────────────────────────────────────
 	local function refreshManager()
 		refreshConfigProfiles()
-		refreshAccentObjects()
-		clearGuiObjects(savedList)
-		clearGuiObjects(communityList)
-		local filter = savedSearch.Text:lower()
-		local visibleSaved = 0
-		for _, profile in mainapi.Profiles do
-			if filter == '' or profile.Name:lower():find(filter, 1, true) then
-				visibleSaved += 1
-				createRow(savedList, profile.Name, profile.Name == (mainapi.Profile or selectedProfile), function()
-					selectedProfile = profile.Name
+		refreshAccents()
+		clearGui(savedList)
+		clearGui(communityList)
+
+		local filter = searchBox.Text:lower()
+		local visCount = 0
+
+		for _, p in mainapi.Profiles do
+			if filter == '' or p.Name:lower():find(filter, 1, true) then
+				visCount += 1
+				createRow(savedList, p.Name, p.Name == (mainapi.Profile or selectedProfile), function()
+					selectedProfile = p.Name
 					previewMode = 'saved'
-					applySavedConfig(profile.Name)
+					applySavedConfig(p.Name)
 					categoryapi:ChangeValue()
 					refreshManager()
 				end, false)
 			end
 		end
-		for _, name in communityConfigs do
-			createRow(communityList, name, name == selectedCommunityConfig, function()
-				selectedCommunityConfig = name
+
+		for _, cname in communityConfigs do
+			createRow(communityList, cname, cname == selectedCommunityConfig, function()
+				selectedCommunityConfig = cname
 				previewMode = 'community'
 				refreshManager()
 			end, true)
 		end
-		savedCount.Text = tostring(visibleSaved)..' / '..tostring(#mainapi.Profiles)
-		communityCount.Text = tostring(#communityConfigs)..' / '..tostring(#communityConfigs)
+
+		savedCount.Text = tostring(visCount)..' / '..tostring(#mainapi.Profiles)
+		communityCount.Text = tostring(#communityConfigs)
+
 		refreshPreview()
 		updateCanvas(savedList, savedLayout)
 		updateCanvas(communityList, communityLayout)
 	end
 
-	createButton(communityPane, '☁  Download All', UDim2.new(0, 12, 1, -46), UDim2.new(1, -24, 0, 36), function()
+	-- ── Action buttons ────────────────────────────────────────────────────
+	-- In saved panel bottom area
+	local savedNewBtn = makeBtn(panelSaved, '+ New Config', 10, 0, 0, 34, 'ghost', function()
+		local newName = 'config'..(#mainapi.Profiles + 1)
+		table.insert(mainapi.Profiles, {Name = newName, Bind = {}})
+		mainapi:Save(newName)
+		selectedProfile = newName
+		previewMode = 'saved'
+		categoryapi:ChangeValue()
+		refreshManager()
+	end)
+	savedNewBtn.Position = UDim2.new(0, 10, 1, -86)
+	savedNewBtn.Size = UDim2.new(1, -20, 0, 34)
+
+	-- Community panel: Download All
+	local dlAllBtn = makeBtn(panelCommunity, '☁  Download All', 10, 0, 0, 34, 'primary', function()
 		if installBundledConfigs(false) then
 			categoryapi:ChangeValue()
 			refreshManager()
 			mainapi:CreateNotification('Configs', 'Community configs downloaded.', 5, 'info')
 		end
-	end, 'neutral')
+	end)
+	dlAllBtn.Position = UDim2.new(0, 10, 1, -44)
+	dlAllBtn.Size = UDim2.new(1, -20, 0, 34)
 
-	createButton(manager, '☁  Download Selected', UDim2.new(0, contentLeft, 1, -58), UDim2.new(0.18, -8, 0, 44), function()
+	-- Bottom action bar buttons (right side)
+	local BAR_Y = (BOTTOM_BAR_H - 38) / 2
+
+	makeBtn(bottomBar, '☁  Download Selected', 12, BAR_Y, 148, 38, 'primary', function()
 		if installBundledConfig(selectedCommunityConfig, false) then
 			selectedProfile = selectedCommunityConfig
 			previewMode = 'community'
 			applySavedConfig(selectedCommunityConfig)
 			categoryapi:ChangeValue()
 			refreshManager()
-			mainapi:CreateNotification('Configs', selectedCommunityConfig..' config downloaded and applied.', 5, 'info')
+			mainapi:CreateNotification('Configs', selectedCommunityConfig..' downloaded & applied.', 5, 'info')
 		end
-	end, 'primary')
+	end)
 
-	createButton(manager, '⟳  Reinstall', UDim2.new(0.385, 0, 1, -58), UDim2.new(0.13, -8, 0, 44), function()
+	makeBtn(bottomBar, '⟳  Reinstall', 168, BAR_Y, 102, 38, 'neutral', function()
 		mainapi:Save()
 		if installBundledConfig(selectedCommunityConfig, true) then
 			selectedProfile = selectedCommunityConfig
@@ -7207,32 +7319,33 @@ local function createConfigManager(categoryapi)
 			applySavedConfig(selectedCommunityConfig)
 			categoryapi:ChangeValue()
 			refreshManager()
-			mainapi:CreateNotification('Configs', selectedCommunityConfig..' config reinstalled and applied.', 5, 'info')
+			mainapi:CreateNotification('Configs', selectedCommunityConfig..' reinstalled & applied.', 5, 'info')
 		end
-	end, 'neutral')
+	end)
 
-	createButton(manager, '⌫  Delete Saved', UDim2.new(0.515, 0, 1, -58), UDim2.new(0.12, -8, 0, 44), function()
+	makeBtn(bottomBar, '⌫  Delete Saved', 278, BAR_Y, 110, 38, 'danger', function()
 		local target = selectedProfile or mainapi.Profile
 		if removeSavedConfig(target) then
 			selectedProfile = mainapi.Profile
 			previewMode = 'saved'
 			categoryapi:ChangeValue()
 			refreshManager()
-			mainapi:CreateNotification('Configs', target..' config deleted.', 5, 'info')
+			mainapi:CreateNotification('Configs', target..' deleted.', 5, 'info')
 		else
-			mainapi:CreateNotification('Configs', 'Select a saved config to delete.', 5, 'warning')
+			mainapi:CreateNotification('Configs', 'Cannot delete: select a non-default saved config.', 5, 'warning')
 		end
-	end, 'danger')
+	end)
 
-	local function importJsonConfig()
+	-- Import button (far right of bottom bar)
+	local importActionBtn = makeBtn(bottomBar, '↥  Import', 0, BAR_Y, 88, 38, 'neutral', function()
 		local text = trim(importBox.Text)
 		if text == '' then
-			mainapi:CreateNotification('Configs', 'Paste a JSON config first.', 5, 'warning')
+			mainapi:CreateNotification('Configs', 'Paste a JSON config into the import box first.', 5, 'warning')
 			return
 		end
-		local success, result = pcall(function() return httpService:JSONDecode(text) end)
-		if success and type(result) == 'table' and result.config and result.gui then
-			local imported = `imported ({#mainapi.Profiles + 1})`
+		local ok, result = pcall(function() return httpService:JSONDecode(text) end)
+		if ok and type(result) == 'table' and result.config and result.gui then
+			local imported = 'imported'..(#mainapi.Profiles + 1)
 			table.insert(mainapi.Profiles, {Name = imported, Bind = {}})
 			mainapi:Save(imported)
 			writefile(getConfigPath(imported), result.config)
@@ -7243,44 +7356,59 @@ local function createConfigManager(categoryapi)
 			categoryapi:ChangeValue()
 			refreshManager()
 			importBox.Text = ''
-			mainapi:CreateNotification('Configs', imported..' imported.', 5, 'info')
+			mainapi:CreateNotification('Configs', imported..' imported successfully.', 5, 'info')
 		else
-			mainapi:CreateNotification('Configs', 'Invalid JSON config.', 5, 'warning')
+			mainapi:CreateNotification('Configs', 'Invalid JSON — check the format and try again.', 5, 'warning')
+		end
+	end)
+	-- Anchor import button to right of bottom bar
+	importActionBtn.Position = UDim2.new(1, -100, 0, BAR_Y)
+	importActionBtn.AnchorPoint = Vector2.new(1, 0)
+
+	importBox.FocusLost:Connect(function(enter)
+		if enter then
+			local text = trim(importBox.Text)
+			if text == '' then return end
+			local ok, result = pcall(function() return httpService:JSONDecode(text) end)
+			if ok and type(result) == 'table' and result.config and result.gui then
+				local imported = 'imported'..(#mainapi.Profiles + 1)
+				table.insert(mainapi.Profiles, {Name = imported, Bind = {}})
+				mainapi:Save(imported)
+				writefile(getConfigPath(imported), result.config)
+				writefile('aethercorev2/profiles/'..game.GameId..'.gui.txt', result.gui)
+				mainapi:Load(true, imported)
+				selectedProfile = imported
+				previewMode = 'saved'
+				categoryapi:ChangeValue()
+				refreshManager()
+				importBox.Text = ''
+				mainapi:CreateNotification('Configs', imported..' imported.', 5, 'info')
+			else
+				mainapi:CreateNotification('Configs', 'Invalid JSON config.', 5, 'warning')
+			end
+		end
+	end)
+
+	-- ── Close / open wiring ───────────────────────────────────────────────
+	local function doClose()
+		if categoryapi.Button and categoryapi.Button.Enabled then
+			categoryapi.Button:Toggle()
+		else
+			manager.Visible = false
+			inputBlocker.Visible = false
+			categoryapi.Expanded = false
 		end
 	end
-	importBox.FocusLost:Connect(function(enterPressed)
-		if enterPressed then importJsonConfig() end
-	end)
 
-	createButton(manager, '↥  Import JSON', UDim2.new(0.825, 0, 1, -58), UDim2.new(0.09, -8, 0, 44), importJsonConfig, 'neutral')
-
-	createButton(manager, '×  Close', UDim2.new(0.915, 0, 1, -58), UDim2.new(0.085, -14, 0, 44), function()
-		if categoryapi.Button and categoryapi.Button.Enabled then
-			categoryapi.Button:Toggle()
-		else
-			manager.Visible = false
-			inputBlocker.Visible = false
-			categoryapi.Expanded = false
-		end
-	end, 'neutral')
-
-	close.MouseEnter:Connect(function()
-		tween:Tween(close, uipallet.Tween, {BackgroundColor3 = Color3.fromRGB(20, 24, 38), TextColor3 = uipallet.Text})
+	closeBtn.MouseEnter:Connect(function()
+		tween:Tween(closeBtn, uipallet.Tween, {BackgroundColor3 = Color3.fromRGB(22, 26, 40), TextColor3 = uipallet.Text})
 	end)
-	close.MouseLeave:Connect(function()
-		tween:Tween(close, uipallet.Tween, {BackgroundColor3 = Color3.fromRGB(13, 17, 29), TextColor3 = getMutedText(0.20)})
+	closeBtn.MouseLeave:Connect(function()
+		tween:Tween(closeBtn, uipallet.Tween, {BackgroundColor3 = CARD, TextColor3 = getMuted(0.22)})
 	end)
-	close.MouseButton1Click:Connect(function()
-		if categoryapi.Button and categoryapi.Button.Enabled then
-			categoryapi.Button:Toggle()
-		else
-			manager.Visible = false
-			inputBlocker.Visible = false
-			categoryapi.Expanded = false
-		end
-	end)
+	closeBtn.MouseButton1Click:Connect(doClose)
 
-	savedSearch:GetPropertyChangedSignal('Text'):Connect(function()
+	searchBox:GetPropertyChangedSignal('Text'):Connect(function()
 		refreshManager()
 	end)
 
