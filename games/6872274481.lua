@@ -3085,7 +3085,7 @@ run(function()
                 AntiFallDirection = nil
             end
         end,
-        Tooltip = 'Help\'s you with your Parkinson\'s\nPrevents you from falling into the void.'
+        Tooltip = 'Helps prevent you from falling into the void.'
     })
     Mode = AntiFall:CreateDropdown({
         Name = 'Move Mode',
@@ -3121,6 +3121,39 @@ run(function()
                 AntiFallPart.Transparency = 1 - o
             end
         end
+    })
+end)
+
+run(function()
+    local NoFall
+    local rayCheck = RaycastParams.new()
+    rayCheck.RespectCanCollide = true
+
+    NoFall = vape.Categories.Blatant:CreateModule({
+        Name = 'No Fall',
+        Function = function(callback)
+            if callback then
+                repeat
+                    local waitDelay = 0.05
+                    if entitylib.isAlive then
+                        local root = entitylib.character.RootPart
+                        local humanoid = entitylib.character.Humanoid
+                        if root and humanoid and root.AssemblyLinearVelocity.Y < -65 then
+                            rayCheck.FilterDescendantsInstances = {lplr.Character, gameCamera, AntiFallPart}
+                            local ray = workspace:Raycast(root.Position, Vector3.new(0, -(entitylib.character.HipHeight + 18), 0), rayCheck)
+                            if not ray then
+                                humanoid:ChangeState(Enum.HumanoidStateType.Ragdoll)
+                                task.wait(0.08)
+                                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                                waitDelay = 0.12
+                            end
+                        end
+                    end
+                    task.wait(waitDelay)
+                until not NoFall.Enabled
+            end
+        end,
+        Tooltip = 'Prevents taking fall damage.'
     })
 end)
 
@@ -7858,7 +7891,7 @@ run(function()
     local Folder = Instance.new('Folder')
     Folder.Parent = vape.gui
     
-    Shader = vape.Categories.Render:CreateModule({
+    Shader = (vape.Categories.Visuals or vape.Categories.Render):CreateModule({
     	Name = 'Shader',
     	Function = function(callback)
     		if callback then
@@ -7977,6 +8010,266 @@ run(function()
     			table.clear(Objects)
     		end
     	end
+    })
+end)
+
+run(function()
+    local TimeChanger, savedClockTime
+    local TimeValue = {Value = 18}
+    TimeChanger = (vape.Categories.Visuals or vape.Categories.Render):CreateModule({
+        Name = 'Time Changer',
+        Function = function(callback)
+            if callback then
+                savedClockTime = lightingService.ClockTime
+                lightingService.ClockTime = TimeValue.Value
+                TimeChanger:Clean(lightingService:GetPropertyChangedSignal('ClockTime'):Connect(function()
+                    if TimeChanger.Enabled and lightingService.ClockTime ~= TimeValue.Value then
+                        lightingService.ClockTime = TimeValue.Value
+                    end
+                end))
+            elseif savedClockTime then
+                lightingService.ClockTime = savedClockTime
+                savedClockTime = nil
+            end
+        end,
+        Tooltip = 'Locks the world time for clearer, better-looking matches.'
+    })
+    TimeValue = TimeChanger:CreateSlider({Name = 'Clock Time', Min = 0, Max = 24, Default = 18, Decimal = 10, Suffix = 'h', Function = function(val)
+        if TimeChanger.Enabled then lightingService.ClockTime = val end
+    end})
+end)
+
+run(function()
+    local AuroraSky, Objects = nil, {}
+    local saved = {}
+    local props = {'Ambient', 'OutdoorAmbient', 'Brightness', 'ClockTime', 'ExposureCompensation', 'EnvironmentDiffuseScale', 'EnvironmentSpecularScale'}
+
+    local function restore()
+        for _, obj in Objects do
+            obj:Destroy()
+        end
+        table.clear(Objects)
+        for _, prop in props do
+            if saved[prop] ~= nil then
+                lightingService[prop] = saved[prop]
+            end
+        end
+        table.clear(saved)
+    end
+
+    AuroraSky = (vape.Categories.Visuals or vape.Categories.Utility):CreateModule({
+        Name = 'Aurora Sky',
+        Function = function(callback)
+            if callback then
+                for _, prop in props do
+                    saved[prop] = lightingService[prop]
+                end
+                lightingService.ClockTime = 20.35
+                lightingService.Brightness = 3
+                lightingService.Ambient = Color3.fromRGB(34, 54, 86)
+                lightingService.OutdoorAmbient = Color3.fromRGB(18, 26, 44)
+                lightingService.ExposureCompensation = -0.15
+                lightingService.EnvironmentDiffuseScale = 0.35
+                lightingService.EnvironmentSpecularScale = 0.6
+
+                Objects.Sky = Instance.new('Sky')
+                Objects.Sky.Name = 'AetherAuroraSky'
+                Objects.Sky.CelestialBodiesShown = true
+                Objects.Sky.StarCount = 3000
+                Objects.Sky.SkyboxBk = 'http://www.roblox.com/asset/?id=159454299'
+                Objects.Sky.SkyboxDn = 'http://www.roblox.com/asset/?id=159454296'
+                Objects.Sky.SkyboxFt = 'http://www.roblox.com/asset/?id=159454293'
+                Objects.Sky.SkyboxLf = 'http://www.roblox.com/asset/?id=159454286'
+                Objects.Sky.SkyboxRt = 'http://www.roblox.com/asset/?id=159454300'
+                Objects.Sky.SkyboxUp = 'http://www.roblox.com/asset/?id=159454288'
+
+                Objects.Atmosphere = Instance.new('Atmosphere')
+                Objects.Atmosphere.Name = 'AetherAuroraAtmosphere'
+                Objects.Atmosphere.Color = Color3.fromRGB(112, 194, 213)
+                Objects.Atmosphere.Decay = Color3.fromRGB(21, 34, 70)
+                Objects.Atmosphere.Density = 0.32
+                Objects.Atmosphere.Offset = 0.12
+                Objects.Atmosphere.Glare = 0.35
+                Objects.Atmosphere.Haze = 1.1
+
+                Objects.Color = Instance.new('ColorCorrectionEffect')
+                Objects.Color.Name = 'AetherAuroraColor'
+                Objects.Color.Brightness = 0.05
+                Objects.Color.Contrast = 0.28
+                Objects.Color.Saturation = 0.35
+                Objects.Color.TintColor = Color3.fromRGB(202, 255, 248)
+
+                Objects.Bloom = Instance.new('BloomEffect')
+                Objects.Bloom.Name = 'AetherAuroraBloom'
+                Objects.Bloom.Intensity = 0.7
+                Objects.Bloom.Size = 48
+                Objects.Bloom.Threshold = 0.72
+
+                Objects.SunRays = Instance.new('SunRaysEffect')
+                Objects.SunRays.Name = 'AetherAuroraRays'
+                Objects.SunRays.Intensity = 0.08
+                Objects.SunRays.Spread = 0.75
+
+                for _, obj in Objects do
+                    obj.Parent = lightingService
+                end
+            else
+                restore()
+            end
+        end,
+        Tooltip = 'Transforms the map into a vivid aurora night with a custom sky, atmosphere, bloom and colour grading.'
+    })
+end)
+
+run(function()
+    local StormMode, Objects = nil, {}
+    local saved = {}
+    local props = {'Ambient', 'OutdoorAmbient', 'Brightness', 'ClockTime', 'ExposureCompensation', 'FogColor', 'FogEnd', 'FogStart'}
+
+    local function restore()
+        for _, obj in Objects do
+            obj:Destroy()
+        end
+        table.clear(Objects)
+        for _, prop in props do
+            if saved[prop] ~= nil then
+                lightingService[prop] = saved[prop]
+            end
+        end
+        table.clear(saved)
+    end
+
+    StormMode = (vape.Categories.Visuals or vape.Categories.Utility):CreateModule({
+        Name = 'Storm Mode',
+        Function = function(callback)
+            if callback then
+                for _, prop in props do
+                    saved[prop] = lightingService[prop]
+                end
+                lightingService.ClockTime = 0
+                lightingService.Brightness = 1.25
+                lightingService.Ambient = Color3.fromRGB(22, 27, 38)
+                lightingService.OutdoorAmbient = Color3.fromRGB(9, 12, 20)
+                lightingService.ExposureCompensation = -0.45
+                lightingService.FogColor = Color3.fromRGB(45, 52, 65)
+                lightingService.FogStart = 35
+                lightingService.FogEnd = 420
+
+                Objects.Atmosphere = Instance.new('Atmosphere')
+                Objects.Atmosphere.Name = 'AetherStormAtmosphere'
+                Objects.Atmosphere.Color = Color3.fromRGB(91, 105, 126)
+                Objects.Atmosphere.Decay = Color3.fromRGB(20, 24, 35)
+                Objects.Atmosphere.Density = 0.42
+                Objects.Atmosphere.Offset = -0.05
+                Objects.Atmosphere.Glare = 0
+                Objects.Atmosphere.Haze = 2.25
+
+                Objects.Color = Instance.new('ColorCorrectionEffect')
+                Objects.Color.Name = 'AetherStormColor'
+                Objects.Color.Brightness = -0.06
+                Objects.Color.Contrast = 0.38
+                Objects.Color.Saturation = -0.18
+                Objects.Color.TintColor = Color3.fromRGB(176, 196, 230)
+
+                Objects.Bloom = Instance.new('BloomEffect')
+                Objects.Bloom.Name = 'AetherStormBloom'
+                Objects.Bloom.Intensity = 0.35
+                Objects.Bloom.Size = 36
+                Objects.Bloom.Threshold = 0.9
+
+                Objects.Depth = Instance.new('DepthOfFieldEffect')
+                Objects.Depth.Name = 'AetherStormDepth'
+                Objects.Depth.FarIntensity = 0.18
+                Objects.Depth.NearIntensity = 0
+                Objects.Depth.FocusDistance = 80
+                Objects.Depth.InFocusRadius = 42
+
+                for _, obj in Objects do
+                    obj.Parent = lightingService
+                end
+            else
+                restore()
+            end
+        end,
+        Tooltip = 'Creates a dramatic storm look with heavy atmosphere, fog, depth and cold cinematic grading.'
+    })
+end)
+
+run(function()
+    local Dreamscape, Objects = nil, {}
+    local saved = {}
+    local props = {'Ambient', 'OutdoorAmbient', 'Brightness', 'ClockTime', 'ExposureCompensation', 'EnvironmentDiffuseScale', 'EnvironmentSpecularScale'}
+
+    local function restore()
+        for _, obj in Objects do
+            obj:Destroy()
+        end
+        table.clear(Objects)
+        for _, prop in props do
+            if saved[prop] ~= nil then
+                lightingService[prop] = saved[prop]
+            end
+        end
+        table.clear(saved)
+    end
+
+    Dreamscape = (vape.Categories.Visuals or vape.Categories.Utility):CreateModule({
+        Name = 'Dreamscape',
+        Function = function(callback)
+            if callback then
+                for _, prop in props do
+                    saved[prop] = lightingService[prop]
+                end
+                lightingService.ClockTime = 13.6
+                lightingService.Brightness = 3.8
+                lightingService.Ambient = Color3.fromRGB(128, 96, 156)
+                lightingService.OutdoorAmbient = Color3.fromRGB(110, 132, 185)
+                lightingService.ExposureCompensation = 0.1
+                lightingService.EnvironmentDiffuseScale = 0.55
+                lightingService.EnvironmentSpecularScale = 0.85
+
+                Objects.Atmosphere = Instance.new('Atmosphere')
+                Objects.Atmosphere.Name = 'AetherDreamAtmosphere'
+                Objects.Atmosphere.Color = Color3.fromRGB(255, 195, 230)
+                Objects.Atmosphere.Decay = Color3.fromRGB(118, 128, 255)
+                Objects.Atmosphere.Density = 0.28
+                Objects.Atmosphere.Offset = 0.22
+                Objects.Atmosphere.Glare = 0.55
+                Objects.Atmosphere.Haze = 0.85
+
+                Objects.Color = Instance.new('ColorCorrectionEffect')
+                Objects.Color.Name = 'AetherDreamColor'
+                Objects.Color.Brightness = 0.08
+                Objects.Color.Contrast = 0.2
+                Objects.Color.Saturation = 0.46
+                Objects.Color.TintColor = Color3.fromRGB(255, 228, 248)
+
+                Objects.Bloom = Instance.new('BloomEffect')
+                Objects.Bloom.Name = 'AetherDreamBloom'
+                Objects.Bloom.Intensity = 0.95
+                Objects.Bloom.Size = 64
+                Objects.Bloom.Threshold = 0.62
+
+                Objects.Depth = Instance.new('DepthOfFieldEffect')
+                Objects.Depth.Name = 'AetherDreamDepth'
+                Objects.Depth.FarIntensity = 0.08
+                Objects.Depth.NearIntensity = 0
+                Objects.Depth.FocusDistance = 120
+                Objects.Depth.InFocusRadius = 70
+
+                Objects.Rays = Instance.new('SunRaysEffect')
+                Objects.Rays.Name = 'AetherDreamRays'
+                Objects.Rays.Intensity = 0.12
+                Objects.Rays.Spread = 0.55
+
+                for _, obj in Objects do
+                    obj.Parent = lightingService
+                end
+            else
+                restore()
+            end
+        end,
+        Tooltip = 'Rebuilds the scene into a bright pastel dream look with strong bloom, haze, depth and sun rays.'
     })
 end)
 

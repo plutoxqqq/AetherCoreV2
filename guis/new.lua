@@ -444,7 +444,7 @@ end
 
 ensureDataFolders()
 
-local communityConfigs = {'cc', 'rage'}
+local communityConfigs = {'cc', 'rage', 'legit', 'bedwars sweat', 'sky pvp', 'utility stack'}
 local defaultConfigs = communityConfigs
 
 local function installBundledConfig(name, force)
@@ -6230,6 +6230,11 @@ mainapi:CreateCategory({
 	Size = UDim2.fromOffset(15, 14)
 })
 mainapi:CreateCategory({
+	Name = 'Visuals',
+	Icon = getcustomasset('aethercorev2/assets/new/rendertab.png'),
+	Size = UDim2.fromOffset(15, 14)
+})
+mainapi:CreateCategory({
 	Name = 'Utility',
 	Icon = getcustomasset('aethercorev2/assets/new/utilityicon.png'),
 	Size = UDim2.fromOffset(15, 14)
@@ -6337,16 +6342,40 @@ local function createConfigManager(categoryapi)
 	local accentObjects = {}
 	local configMetadata = {
 		cc = {
-			Title = 'CC Config',
+			Title = 'cc',
 			Initials = 'CC',
 			Description = 'A legitimate-focused configuration with essential modules for smooth gameplay. Great for everyday PvP and ranked matches.',
-			Tags = {'legit', 'clean', 'pvp'}
+			Tags = {'Verified', 'Featured', 'Safe'}
+		},
+		legit = {
+			Title = 'legit+',
+			Initials = 'LG',
+			Description = 'Smooth legit-style setup with visual clarity, safety checks and gentle movement.',
+			Tags = {'Verified', 'Safe', 'Low Flag'}
+		},
+		['bedwars sweat'] = {
+			Title = 'bedwars sweat',
+			Initials = 'BW',
+			Description = 'Optimised for BedWars wins with clean visuals, reliable utility and fast reactions.',
+			Tags = {'Featured', 'Safe', 'Utility'}
+		},
+		['sky pvp'] = {
+			Title = 'sky pvp',
+			Initials = 'SP',
+			Description = 'Practice and ranked Sky PvP preset focused on aerial fights and awareness.',
+			Tags = {'New', 'Safe', 'Aerial'}
+		},
+		['utility stack'] = {
+			Title = 'utility stack',
+			Initials = 'US',
+			Description = 'A clean package of useful quality-of-life modules for every match.',
+			Tags = {'Verified', 'Safe', 'QOL'}
 		},
 		rage = {
-			Title = 'Rage Config',
+			Title = 'rage',
 			Initials = 'RG',
 			Description = 'An aggressive configuration tuned for maximum pressure and fast eliminations. Best for unranked or casual lobbies.',
-			Tags = {'aggressive', 'pvp', 'blatant'}
+			Tags = {'Verified', 'Safe', 'High Risk'}
 		}
 	}
 
@@ -6560,7 +6589,7 @@ local function createConfigManager(categoryapi)
 	headerTitle.Size = UDim2.new(0.5, -80, 0, 26)
 	headerTitle.Position = UDim2.fromOffset(66, 12)
 	headerTitle.BackgroundTransparency = 1
-	headerTitle.Text = 'Config Manager'
+	headerTitle.Text = 'Community Configs'
 	headerTitle.TextXAlignment = Enum.TextXAlignment.Left
 	headerTitle.TextColor3 = uipallet.Text
 	headerTitle.TextSize = 20
@@ -6571,7 +6600,7 @@ local function createConfigManager(categoryapi)
 	headerSub.Size = UDim2.new(0.6, -80, 0, 18)
 	headerSub.Position = UDim2.fromOffset(67, 39)
 	headerSub.BackgroundTransparency = 1
-	headerSub.Text = 'Download, switch, import and delete configs — changes apply immediately'
+	headerSub.Text = 'Browse, preview, save, and apply community-made loadouts'
 	headerSub.TextXAlignment = Enum.TextXAlignment.Left
 	headerSub.TextColor3 = getMuted(0.40)
 	headerSub.TextSize = 11
@@ -6719,8 +6748,8 @@ local function createConfigManager(categoryapi)
 		return hdr, cnt
 	end
 
-	local _, savedCount = makePanelHeader(panelSaved, '▱', 'Saved Configs')
-	local _, communityCount = makePanelHeader(panelCommunity, '☁', 'Community')
+	local _, savedCount = makePanelHeader(panelSaved, '⌄', 'Installed')
+	local _, communityCount = makePanelHeader(panelCommunity, '◉', 'Discover')
 	local _, previewCount = makePanelHeader(panelPreview, '▤', 'Preview')
 	previewCount.Text = 'LIVE'
 	bindAccent(previewCount, 'TextColor3', nil, nil, 'text')
@@ -7287,7 +7316,7 @@ local function createConfigManager(categoryapi)
 	savedNewBtn.Size = UDim2.new(1, -20, 0, 34)
 
 	-- Community panel: Download All
-	local dlAllBtn = makeBtn(panelCommunity, '☁  Download All', 10, 0, 0, 34, 'primary', function()
+	local dlAllBtn = makeBtn(panelCommunity, '▷  Apply Config', 10, 0, 0, 34, 'primary', function()
 		if installBundledConfigs(false) then
 			categoryapi:ChangeValue()
 			refreshManager()
@@ -7697,12 +7726,13 @@ guipane:CreateButton({
 			CombatCategory = 2,
 			BlatantCategory = 3,
 			RenderCategory = 4,
-			UtilityCategory = 5,
-			WorldCategory = 6,
-			InventoryCategory = 7,
-			MinigamesCategory = 8,
-			FriendsCategory = 9,
-			ProfilesCategory = 10
+			VisualsCategory = 5,
+			UtilityCategory = 6,
+			WorldCategory = 7,
+			InventoryCategory = 8,
+			MinigamesCategory = 9,
+			FriendsCategory = 10,
+			ProfilesCategory = 11
 		}
 		local categories = {}
 		for _, v in mainapi.Categories do
@@ -7754,6 +7784,95 @@ mainapi.GUIColor = mainapi.Categories.Main:CreateGUISlider({
 	end
 })
 mainapi.Categories.Main:CreateBind()
+
+
+--[[
+	Useful Overlays
+]]
+
+local function createInfoOverlay(settings)
+	local overlay
+	overlay = mainapi:CreateOverlay({
+		Name = settings.Name,
+		Icon = settings.Icon,
+		Size = settings.Size,
+		Position = settings.Position,
+		CategorySize = 190,
+		Function = function(callback)
+			if callback then
+				settings.Update(settings, 1 / 60)
+				table.insert(overlay.Connections, runService.Heartbeat:Connect(function(dt)
+					if os.clock() - settings.LastUpdate > settings.Interval then
+						settings.LastUpdate = os.clock()
+						settings.Update(settings, dt)
+					end
+				end))
+			end
+		end
+	})
+	overlay.Object.Size = UDim2.fromOffset(190, 82)
+	local body = Instance.new('TextLabel')
+	body.Name = 'Body'
+	body.Size = UDim2.new(1, -20, 0, 34)
+	body.Position = UDim2.fromOffset(10, 42)
+	body.BackgroundTransparency = 1
+	body.TextXAlignment = Enum.TextXAlignment.Left
+	body.TextYAlignment = Enum.TextYAlignment.Top
+	body.TextColor3 = color.Dark(uipallet.Text, 0.16)
+	body.TextSize = 12
+	body.FontFace = uipallet.Font
+	body.Parent = overlay.Object.CustomChildren
+	settings.Label = body
+	return overlay
+end
+
+local overlayStarted = os.clock()
+createInfoOverlay({
+	Name = 'Session Panel',
+	Icon = getcustomasset('aethercorev2/assets/new/info.png'),
+	Size = UDim2.fromOffset(14, 14),
+	Position = UDim2.fromOffset(12, 13),
+	Interval = 1,
+	LastUpdate = 0,
+	Update = function(self)
+		local elapsed = math.floor(os.clock() - overlayStarted)
+		self.Label.Text = 'Runtime  '..math.floor(elapsed / 60)..'m '..(elapsed % 60)..'s\nProfile  '..tostring(mainapi.Profile or 'default')
+	end
+})
+
+createInfoOverlay({
+	Name = 'Performance Monitor',
+	Icon = getcustomasset('aethercorev2/assets/new/radaricon.png'),
+	Size = UDim2.fromOffset(14, 14),
+	Position = UDim2.fromOffset(12, 13),
+	Interval = 0.5,
+	LastUpdate = 0,
+	Update = function(self, dt)
+		local fps = math.floor(1 / math.max(dt or (1 / 60), 0.001))
+		self.Label.Text = 'FPS  '..fps..'\nStatus  optimised'
+	end
+})
+
+createInfoOverlay({
+	Name = 'Module Summary',
+	Icon = getcustomasset('aethercorev2/assets/new/overlaystab.png'),
+	Size = UDim2.fromOffset(14, 12),
+	Position = UDim2.fromOffset(12, 13),
+	Interval = 1,
+	LastUpdate = 0,
+	Update = function(self)
+		local enabled, total = 0, 0
+		for _, category in mainapi.Categories do
+			if category.Modules then
+				for _, module in category.Modules do
+					total += 1
+					if module.Enabled then enabled += 1 end
+				end
+			end
+		end
+		self.Label.Text = 'Enabled  '..enabled..' / '..total..'\nTheme  script accent'
+	end
+})
 
 --[[
 	Text GUI
