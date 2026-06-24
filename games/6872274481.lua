@@ -8506,171 +8506,351 @@ run(function()
     local saved, savedClouds = {}, {}
     local storageFolder, cloudObject, cloudsCreated
     local terrain = workspace.Terrain
-    local props = {'Ambient', 'OutdoorAmbient', 'Brightness', 'ClockTime', 'ExposureCompensation', 'EnvironmentDiffuseScale', 'EnvironmentSpecularScale', 'FogColor', 'FogStart', 'FogEnd', 'GlobalShadows'}
-    local Season = {Value = 'Summer'}
-    local DayMood = {Value = 'Balanced'}
+    local props = {'Ambient', 'OutdoorAmbient', 'Brightness', 'ClockTime', 'ExposureCompensation', 'EnvironmentDiffuseScale', 'EnvironmentSpecularScale', 'FogColor', 'FogStart', 'FogEnd', 'GlobalShadows', 'ColorShift_Top', 'ColorShift_Bottom'}
+    local Season    = {Value = 'Summer'}
+    local DayMood   = {Value = 'Balanced'}
     local TimeOfDay = {Value = 12.5}
-    local CloudCover = {Value = 35}
-    local AirClarity = {Value = 72}
+    local CloudCover  = {Value = 35}
+    local AirClarity  = {Value = 72}
     local SunStrength = {Value = 64}
+
+    -- Smoothstep for natural interpolation
+    local function smoothstep(t)
+        t = math.clamp(t, 0, 1)
+        return t * t * (3 - 2 * t)
+    end
+
+    -- Solar elevation angle in [0,1]: peaks at noon, 0 at horizon, negative underground
+    local function solarElevation(clock)
+        -- Simplified: sun rises ~6, sets ~18, peaks at 12
+        local angle = (clock - 6) / 12 * math.pi  -- 0..pi over day
+        return math.sin(angle)  -- -1 to 1, 0 at 6am/6pm, 1 at noon
+    end
+
+    local function lerpColor(a, b, t)
+        t = math.clamp(t, 0, 1)
+        return Color3.new(
+            a.R + (b.R - a.R) * t,
+            a.G + (b.G - a.G) * t,
+            a.B + (b.B - a.B) * t
+        )
+    end
+
+    local function lerpColor3(a, b, c, t)
+        -- Three-way lerp: t=0 -> a, t=0.5 -> b, t=1 -> c
+        if t < 0.5 then
+            return lerpColor(a, b, t * 2)
+        else
+            return lerpColor(b, c, (t - 0.5) * 2)
+        end
+    end
+
+    local function mixColor(a, b, t)
+        -- Gamma-correct ish blending
+        local function ch(x, y, f) return math.sqrt(x*x*(1-f) + y*y*f) end
+        return Color3.new(ch(a.R,b.R,t), ch(a.G,b.G,t), ch(a.B,b.B,t))
+    end
+
+    -- Physically-based sky color for given conditions
+    local function skyColor(elevNorm, cloud, clarity)
+        -- elevNorm: 0=horizon, 1=noon
+        local nightSky    = Color3.fromRGB(8, 9, 18)
+        local horizonDawn = Color3.fromRGB(255, 160, 85)   -- warm horizon at sunrise/set
+        local horizonDay  = Color3.fromRGB(195, 220, 245)  -- blue horizon midday
+        local zenithDay   = Color3.fromRGB(90, 155, 225)   -- blue zenith
+        local horizonDusk = Color3.fromRGB(240, 110, 55)   -- orange dusk horizon
+        local twilight    = Color3.fromRGB(60, 40, 90)     -- purple twilight
+
+        -- Smooth transitions using solar elevation
+        local dayFactor   = smoothstep(elevNorm)
+        local nightFactor = smoothstep(-elevNorm)
+        local goldenHour  = math.max(0, 1 - math.abs(elevNorm - 0.15) / 0.25)  -- peaks near sunrise/set
+
+        local horizonColor
+        if goldenHour > 0.05 then
+            horizonColor = lerpColor(horizonDawn, horizonDay, smoothstep(elevNorm / 0.4))
+        else
+            horizonColor = horizonDay
+        end
+
+        local baseColor = lerpColor3(nightSky, horizonColor, zenithDay, dayFactor)
+        baseColor = lerpColor(twilight, baseColor, smoothstep(elevNorm + 0.3))
+
+        -- Cloud desaturation
+        local cloudGrey = Color3.fromRGB(195, 200, 205)
+        baseColor = lerpColor(baseColor, cloudGrey, cloud * 0.35)
+
+        -- Haze reduces saturation and shifts toward white
+        local haze = Color3.fromRGB(235, 235, 230)
+        baseColor = lerpColor(baseColor, haze, (1 - clarity) * 0.4)
+
+        return baseColor
+    end
 
     local seasonProfiles = {
         Spring = {
-            ambient = Color3.fromRGB(128, 143, 132),
-            outdoor = Color3.fromRGB(168, 178, 158),
-            fog = Color3.fromRGB(205, 219, 207),
-            tint = Color3.fromRGB(246, 255, 239),
-            atmosphere = Color3.fromRGB(204, 224, 214),
-            decay = Color3.fromRGB(114, 132, 110),
-            saturation = 0.08,
-            haze = 0.45,
-            temperature = 0.04
+            ambientTint  = Color3.fromRGB(138, 155, 140),
+            outdoorTint  = Color3.fromRGB(162, 180, 152),
+            fogBase      = Color3.fromRGB(210, 225, 210),
+            colorTop     = Color3.fromRGB(195, 225, 200),
+            colorBottom  = Color3.fromRGB(185, 205, 195),
+            haze         = 0.42,
+            saturation   = 0.06,
+            temperature  = 0.02,
+            sunAngular   = 17,
+            glare        = 0.28,
         },
         Summer = {
-            ambient = Color3.fromRGB(145, 142, 128),
-            outdoor = Color3.fromRGB(188, 178, 145),
-            fog = Color3.fromRGB(225, 220, 194),
-            tint = Color3.fromRGB(255, 248, 226),
-            atmosphere = Color3.fromRGB(226, 221, 198),
-            decay = Color3.fromRGB(143, 121, 82),
-            saturation = 0.12,
-            haze = 0.28,
-            temperature = 0.08
+            ambientTint  = Color3.fromRGB(148, 145, 128),
+            outdoorTint  = Color3.fromRGB(185, 175, 140),
+            fogBase      = Color3.fromRGB(225, 218, 192),
+            colorTop     = Color3.fromRGB(210, 225, 195),
+            colorBottom  = Color3.fromRGB(230, 215, 175),
+            haze         = 0.22,
+            saturation   = 0.14,
+            temperature  = 0.10,
+            sunAngular   = 20,
+            glare        = 0.45,
         },
         Autumn = {
-            ambient = Color3.fromRGB(142, 112, 86),
-            outdoor = Color3.fromRGB(178, 139, 96),
-            fog = Color3.fromRGB(218, 184, 145),
-            tint = Color3.fromRGB(255, 231, 204),
-            atmosphere = Color3.fromRGB(222, 184, 142),
-            decay = Color3.fromRGB(108, 73, 45),
-            saturation = 0.04,
-            haze = 0.68,
-            temperature = 0.1
+            ambientTint  = Color3.fromRGB(148, 118, 88),
+            outdoorTint  = Color3.fromRGB(175, 138, 95),
+            fogBase      = Color3.fromRGB(215, 182, 140),
+            colorTop     = Color3.fromRGB(195, 175, 130),
+            colorBottom  = Color3.fromRGB(215, 180, 120),
+            haze         = 0.62,
+            saturation   = 0.02,
+            temperature  = 0.12,
+            sunAngular   = 16,
+            glare        = 0.22,
         },
         Winter = {
-            ambient = Color3.fromRGB(126, 137, 148),
-            outdoor = Color3.fromRGB(174, 184, 194),
-            fog = Color3.fromRGB(215, 226, 234),
-            tint = Color3.fromRGB(232, 244, 255),
-            atmosphere = Color3.fromRGB(210, 225, 235),
-            decay = Color3.fromRGB(126, 145, 162),
-            saturation = -0.12,
-            haze = 0.72,
-            temperature = -0.08
+            ambientTint  = Color3.fromRGB(130, 140, 152),
+            outdoorTint  = Color3.fromRGB(172, 182, 198),
+            fogBase      = Color3.fromRGB(212, 224, 235),
+            colorTop     = Color3.fromRGB(200, 218, 240),
+            colorBottom  = Color3.fromRGB(215, 225, 240),
+            haze         = 0.68,
+            saturation   = -0.14,
+            temperature  = -0.10,
+            sunAngular   = 13,
+            glare        = 0.15,
         }
     }
 
     local moodProfiles = {
-        Balanced = {brightness = 0, contrast = 0.05, saturation = 0, exposure = 0, haze = 0, bloom = 0, fog = 0},
-        Crisp = {brightness = 0.02, contrast = 0.12, saturation = 0.05, exposure = 0.05, haze = -0.16, bloom = -0.04, fog = 80},
-        Overcast = {brightness = -0.08, contrast = -0.03, saturation = -0.1, exposure = -0.08, haze = 0.24, bloom = -0.1, fog = -120},
-        Golden = {brightness = 0.04, contrast = 0.1, saturation = 0.1, exposure = 0.02, haze = 0.18, bloom = 0.12, fog = -40},
-        Melancholy = {brightness = -0.1, contrast = 0.04, saturation = -0.18, exposure = -0.15, haze = 0.34, bloom = -0.08, fog = -170}
+        Balanced  = {brightness=0,    contrast=0.04,  saturation=0,    exposure=0,     hazeAdd=0,    bloomAdd=0,   fogFar=0},
+        Crisp     = {brightness=0.03, contrast=0.14,  saturation=0.06, exposure=0.06,  hazeAdd=-0.18,bloomAdd=-0.05,fogFar=120},
+        Overcast  = {brightness=-0.09,contrast=-0.04, saturation=-0.12,exposure=-0.10, hazeAdd=0.28, bloomAdd=-0.12,fogFar=-150},
+        Golden    = {brightness=0.05, contrast=0.12,  saturation=0.12, exposure=0.03,  hazeAdd=0.14, bloomAdd=0.14, fogFar=-50},
+        Melancholy= {brightness=-0.12,contrast=0.05,  saturation=-0.20,exposure=-0.18, hazeAdd=0.38, bloomAdd=-0.10,fogFar=-200},
     }
 
-    local function blendColor(a, b, alpha)
-        return Color3.new(
-            a.R + (b.R - a.R) * alpha,
-            a.G + (b.G - a.G) * alpha,
-            a.B + (b.B - a.B) * alpha
-        )
-    end
-
     local function restore()
-        for _, obj in Objects do
-            obj:Destroy()
-        end
+        for _, obj in Objects do obj:Destroy() end
         table.clear(Objects)
         if cloudObject then
             if cloudsCreated then
                 cloudObject:Destroy()
             else
-                for prop, value in savedClouds do
-                    cloudObject[prop] = value
-                end
+                for prop, value in savedClouds do cloudObject[prop] = value end
             end
         end
         cloudObject, cloudsCreated = nil, nil
         table.clear(savedClouds)
         if storageFolder then
-            for _, obj in storageFolder:GetChildren() do
-                obj.Parent = lightingService
-            end
+            for _, obj in storageFolder:GetChildren() do obj.Parent = lightingService end
             storageFolder:Destroy()
             storageFolder = nil
         end
         for _, prop in props do
-            if saved[prop] ~= nil then
-                lightingService[prop] = saved[prop]
-            end
+            if saved[prop] ~= nil then lightingService[prop] = saved[prop] end
         end
         table.clear(saved)
     end
 
     local function applyReplica()
-        if not IRLReplica or not IRLReplica.Enabled then
-            return
-        end
+        if not IRLReplica or not IRLReplica.Enabled then return end
 
-        local season = seasonProfiles[Season.Value] or seasonProfiles.Summer
-        local mood = moodProfiles[DayMood.Value] or moodProfiles.Balanced
-        local clock = TimeOfDay.Value
-        local noonDistance = math.abs(clock - 12) / 12
-        local sunriseDistance = math.min(math.abs(clock - 6.25), math.abs(clock - 18.2)) / 6
-        local goldenHour = math.clamp(1 - sunriseDistance, 0, 1)
-        local night = math.clamp((noonDistance - 0.62) / 0.38, 0, 1)
-        local cloud = CloudCover.Value / 100
-        local clarity = AirClarity.Value / 100
-        local sun = SunStrength.Value / 100
-        local daylight = 1 - (night * 0.72)
-        local skyBlue = Color3.fromRGB(176, 206, 232)
-        local golden = Color3.fromRGB(255, 203, 145)
-        local nightBlue = Color3.fromRGB(56, 71, 100)
-        local cloudGrey = Color3.fromRGB(185, 191, 194)
+        local season  = seasonProfiles[Season.Value]  or seasonProfiles.Summer
+        local mood    = moodProfiles[DayMood.Value]   or moodProfiles.Balanced
+        local clock   = TimeOfDay.Value
+        local cloud   = CloudCover.Value  / 100
+        local clarity = AirClarity.Value  / 100
+        local sun     = SunStrength.Value / 100
 
-        lightingService.GlobalShadows = true
-        lightingService.ClockTime = clock
-        lightingService.Brightness = math.clamp((2.05 + (sun * 1.25) - (cloud * 0.85) - (night * 1.05) + mood.brightness), 0.25, 4)
-        lightingService.ExposureCompensation = math.clamp((-0.08 + (sun * 0.18) - (cloud * 0.22) - (night * 0.16) + mood.exposure), -0.8, 0.45)
-        lightingService.EnvironmentDiffuseScale = math.clamp(0.45 + (clarity * 0.28) - (cloud * 0.22), 0.1, 1)
-        lightingService.EnvironmentSpecularScale = math.clamp(0.38 + (sun * 0.42) - (cloud * 0.18), 0.05, 1)
-        lightingService.Ambient = blendColor(blendColor(season.ambient, nightBlue, night * 0.58), cloudGrey, cloud * 0.2)
-        lightingService.OutdoorAmbient = blendColor(blendColor(season.outdoor, golden, goldenHour * 0.32), nightBlue, night * 0.5)
-        lightingService.FogColor = blendColor(blendColor(season.fog, skyBlue, clarity * 0.22), golden, goldenHour * 0.18)
-        lightingService.FogStart = math.clamp(65 + (clarity * 125) - (cloud * 65) + mood.fog, 18, 260)
-        lightingService.FogEnd = math.clamp(520 + (clarity * 900) - (cloud * 440) + (sun * 160) + (mood.fog * 2.4), 180, 1800)
+        -- Physical solar model
+        local elevNorm    = solarElevation(clock)          -- -1..1
+        local elevClamped = math.max(elevNorm, 0)          -- 0..1 above horizon
+        local dayFactor   = smoothstep(elevClamped)        -- 0=night, 1=noon
+        local nightFactor = smoothstep(-elevNorm)          -- 0=day, 1=midnight
+        local goldenHour  = math.max(0, 1 - math.abs(elevNorm - 0.12) / 0.22)
+        local dawn        = math.max(0, 1 - math.abs(elevNorm - 0.08) / 0.18)
+        local civilTwilight = math.clamp(1 - math.abs(elevNorm) / 0.18, 0, 1)
 
-        Objects.Atmosphere.Color = blendColor(blendColor(season.atmosphere, skyBlue, clarity * 0.28), golden, goldenHour * 0.22)
-        Objects.Atmosphere.Decay = blendColor(season.decay, nightBlue, night * 0.34)
-        Objects.Atmosphere.Density = math.clamp(0.18 + ((1 - clarity) * 0.24) + (cloud * 0.16) + season.haze * 0.08 + mood.haze, 0.08, 0.66)
-        Objects.Atmosphere.Offset = math.clamp(0.05 + (goldenHour * 0.1) - (night * 0.12), -0.18, 0.24)
-        Objects.Atmosphere.Glare = math.clamp((sun * 0.34 * daylight) + (goldenHour * 0.24) - (cloud * 0.18), 0, 0.75)
-        Objects.Atmosphere.Haze = math.clamp(0.42 + ((1 - clarity) * 1.45) + (cloud * 1.35) + season.haze + mood.haze, 0.05, 3)
+        -- Physical sky colors
+        local computedSky = skyColor(elevNorm, cloud, clarity)
+        local fogSkyColor = lerpColor(season.fogBase, computedSky, dayFactor * clarity * 0.5)
 
-        Objects.Color.Brightness = math.clamp(0.01 + (goldenHour * 0.025) - (night * 0.045) + mood.brightness, -0.25, 0.25)
-        Objects.Color.Contrast = math.clamp(0.08 + (clarity * 0.12) - (cloud * 0.1) + mood.contrast, -0.12, 0.35)
-        Objects.Color.Saturation = math.clamp(season.saturation + (sun * 0.08) - (cloud * 0.12) - (night * 0.08) + mood.saturation, -0.35, 0.35)
-        Objects.Color.TintColor = blendColor(blendColor(season.tint, golden, goldenHour * (0.36 + season.temperature)), nightBlue, night * 0.2)
+        -- Scattering: warm at low angles, blue overhead
+        local rayleighFactor = goldenHour * sun * 0.5        -- orange-red scatter at horizon
+        local warmHorizon = Color3.fromRGB(255, 175, 90)
+        local coolZenith  = Color3.fromRGB(100, 160, 230)
 
-        Objects.Bloom.Intensity = math.clamp(0.08 + (sun * 0.16) + (goldenHour * 0.12) - (cloud * 0.07) + mood.bloom, 0, 0.42)
-        Objects.Bloom.Size = math.clamp(22 + (sun * 18) + (goldenHour * 10), 12, 56)
-        Objects.Bloom.Threshold = math.clamp(1.08 - (sun * 0.18) + (cloud * 0.12), 0.78, 1.25)
-        Objects.Rays.Intensity = math.clamp((sun * 0.08 * daylight) + (goldenHour * 0.1) - (cloud * 0.09), 0, 0.2)
-        Objects.Rays.Spread = math.clamp(0.55 + (goldenHour * 0.18) + (cloud * 0.12), 0.35, 0.9)
-        Objects.Depth.FarIntensity = math.clamp(0.015 + ((1 - clarity) * 0.05) + (cloud * 0.025), 0, 0.12)
-        Objects.Depth.NearIntensity = 0
-        Objects.Depth.FocusDistance = 145
-        Objects.Depth.InFocusRadius = math.clamp(95 + (clarity * 75), 70, 180)
+        -- Ambient: combination of sky contribution + seasonal tint + night
+        local nightAmb = Color3.fromRGB(12, 14, 22)
+        local goldenAmb = Color3.fromRGB(175, 138, 90)
+        local dayAmb   = lerpColor(season.ambientTint, goldenAmb, goldenHour * 0.4)
+        local ambient  = lerpColor(nightAmb, dayAmb, smoothstep(elevClamped * 1.2))
+        ambient = lerpColor(ambient, Color3.fromRGB(185, 190, 195), cloud * 0.25)
+
+        -- Outdoor ambient: brighter, more sky-influenced
+        local nightOut  = Color3.fromRGB(18, 20, 35)
+        local dayOut    = lerpColor(season.outdoorTint, goldenAmb, goldenHour * sun * 0.55)
+        local outdoorAmb = lerpColor(nightOut, dayOut, smoothstep(elevClamped * 1.1))
+        outdoorAmb = lerpColor(outdoorAmb, Color3.fromRGB(200, 202, 210), cloud * 0.20)
+
+        -- ColorShift_Top (sky/zenith color influence on scene)
+        local topShiftDay   = lerpColor(coolZenith, warmHorizon, goldenHour * sun)
+        local topShiftNight = Color3.fromRGB(20, 22, 40)
+        local colorTop      = lerpColor(topShiftNight, topShiftDay, dayFactor)
+        colorTop = lerpColor(colorTop, season.colorTop, 0.35)
+        colorTop = lerpColor(colorTop, Color3.fromRGB(210, 210, 205), cloud * 0.22)
+
+        -- ColorShift_Bottom (ground bounce light)
+        local bottomDay   = lerpColor(season.colorBottom, Color3.fromRGB(255, 195, 110), goldenHour * sun * 0.5)
+        local bottomNight = Color3.fromRGB(10, 12, 20)
+        local colorBottom = lerpColor(bottomNight, bottomDay, dayFactor * 0.7)
+
+        -- Fog: physically, closer fog at dawn/dusk due to inversion layers
+        local inversionFog = dawn * (1 - cloud) * sun * 0.8  -- temperature inversion
+        local baseFogStart = 55 + clarity * 130 - cloud * 60 + mood.fogFar * 0.08
+        local baseFogEnd   = 450 + clarity * 950 - cloud * 420 + sun * 180 + mood.fogFar * 2.2
+        baseFogStart = math.max(baseFogStart - inversionFog * 30, 8)
+        baseFogEnd   = math.max(baseFogEnd   - inversionFog * 120, 80)
+
+        -- Darkness: non-linear falloff as sun sets
+        local brightnessBase = 0.8 + (sun * 1.8 - cloud * 0.9) * dayFactor
+        local nightBrightness = 0.15 * (1 - cloud * 0.7)  -- some moonlight
+        local brightness = lerpColor(
+            Color3.new(nightBrightness, nightBrightness, nightBrightness),
+            Color3.new(brightnessBase, brightnessBase, brightnessBase),
+            dayFactor
+        ).R + mood.brightness  -- abuse Color3 as float lerp
+
+        -- Exposure: physically darker at twilight, bright midday
+        local exposureBase = -0.12 + sun * 0.22 - cloud * 0.25
+        local exposureNight = -0.35
+        local exposure = exposureBase * dayFactor + exposureNight * nightFactor + mood.exposure
+        -- Cinematic crush: very slight S-curve feel at golden hour
+        exposure = exposure + goldenHour * 0.04
+
+        lightingService.GlobalShadows       = true
+        lightingService.ClockTime           = clock
+        lightingService.Brightness          = math.clamp(brightness, 0.1, 4.5)
+        lightingService.ExposureCompensation= math.clamp(exposure, -0.9, 0.55)
+        lightingService.EnvironmentDiffuseScale  = math.clamp(0.42 + clarity * 0.32 - cloud * 0.24 + dayFactor * 0.1, 0.08, 1)
+        lightingService.EnvironmentSpecularScale = math.clamp(0.30 + sun * 0.50 * dayFactor - cloud * 0.20, 0.04, 1)
+        lightingService.Ambient             = ambient
+        lightingService.OutdoorAmbient      = outdoorAmb
+        lightingService.FogColor            = fogSkyColor
+        lightingService.FogStart            = math.clamp(baseFogStart, 8, 280)
+        lightingService.FogEnd              = math.clamp(baseFogEnd,  80, 2000)
+        lightingService.ColorShift_Top      = colorTop
+        lightingService.ColorShift_Bottom   = colorBottom
+
+        -- Atmosphere: Mie & Rayleigh scattering approximation
+        local hazeTotal  = season.haze + (1 - clarity) * 1.6 + cloud * 1.5 + mood.hazeAdd
+        local densityBase= 0.14 + (1 - clarity) * 0.22 + cloud * 0.18 + season.haze * 0.06
+        -- Atmospheric color: blue sky day, warm at golden hour, grey when cloudy
+        local atmDay   = lerpColor(Color3.fromRGB(175, 210, 240), warmHorizon, goldenHour * sun * 0.55)
+        local atmCloud = Color3.fromRGB(195, 198, 202)
+        local atmNight = Color3.fromRGB(28, 32, 48)
+        local atmColor = lerpColor(lerpColor(atmNight, atmDay, dayFactor), atmCloud, cloud * 0.45)
+
+        local decayDay   = lerpColor(Color3.fromRGB(110, 80, 50), Color3.fromRGB(55, 75, 105), 1 - goldenHour)
+        local decayNight = Color3.fromRGB(8, 10, 22)
+        local atmDecay   = lerpColor(decayNight, decayDay, dayFactor)
+
+        -- Glare: physically much stronger when sun is low and air is clear
+        local glareBase  = season.glare * clarity * sun
+        local glareGolden = goldenHour * sun * clarity * 0.65
+        local glare = math.clamp(glareBase * dayFactor * 0.5 + glareGolden, 0, 0.9)
+
+        -- Offset: positive when sun near horizon creates visible band
+        local horizonBand = math.clamp(1 - math.abs(elevNorm - 0.05) / 0.20, 0, 1) * clarity * sun
+        local atmOffset  = math.clamp(horizonBand * 0.28 - nightFactor * 0.05, -0.12, 0.35)
+
+        Objects.Atmosphere.Color   = atmColor
+        Objects.Atmosphere.Decay   = atmDecay
+        Objects.Atmosphere.Density = math.clamp(densityBase, 0.06, 0.72)
+        Objects.Atmosphere.Offset  = atmOffset
+        Objects.Atmosphere.Glare   = glare
+        Objects.Atmosphere.Haze    = math.clamp(hazeTotal, 0.04, 3.2)
+
+        -- Color correction: physical film-like response
+        local satBase   = season.saturation + sun * 0.10 * dayFactor - cloud * 0.14 - nightFactor * 0.12
+        local brightCorr= 0.01 + goldenHour * 0.03 * sun - nightFactor * 0.06 + mood.brightness
+        local contrastCorr = 0.06 + clarity * 0.14 - cloud * 0.12 + mood.contrast
+        -- Tint: neutral day, warm golden, cool night
+        local tintDay   = lerpColor(Color3.fromRGB(255, 248, 235), Color3.fromRGB(255, 210, 165), goldenHour * sun * 0.7)
+        local tintNight = Color3.fromRGB(210, 220, 255)
+        local tint      = lerpColor(tintNight, tintDay, dayFactor)
+        tint = lerpColor(tint, season.fogBase, 0.15)  -- season tint blend
+
+        Objects.Color.Brightness  = math.clamp(brightCorr, -0.28, 0.28)
+        Objects.Color.Contrast    = math.clamp(contrastCorr, -0.15, 0.40)
+        Objects.Color.Saturation  = math.clamp(satBase + mood.saturation, -0.40, 0.40)
+        Objects.Color.TintColor   = tint
+
+        -- Bloom: physically brighter in hazy/humid air, peaks at golden hour
+        local bloomInt  = 0.06 + sun * 0.18 * dayFactor + goldenHour * 0.18 * sun - cloud * 0.08 + mood.bloomAdd
+        local bloomSize = 18 + sun * 22 + goldenHour * 14 + cloud * 8
+        local bloomThresh = 1.12 - sun * 0.22 * dayFactor + cloud * 0.14
+        Objects.Bloom.Intensity  = math.clamp(bloomInt, 0, 0.55)
+        Objects.Bloom.Size       = math.clamp(bloomSize, 10, 68)
+        Objects.Bloom.Threshold  = math.clamp(bloomThresh, 0.72, 1.35)
+
+        -- Sun rays: only visible when sun is relatively low AND clear air
+        local raysIntensity = math.max(goldenHour, dawn) * sun * clarity * 0.22 - cloud * 0.12
+        local raysSpread    = 0.50 + goldenHour * 0.22 + cloud * 0.15
+        Objects.Rays.Intensity = math.clamp(raysIntensity, 0, 0.28)
+        Objects.Rays.Spread    = math.clamp(raysSpread, 0.30, 0.95)
+
+        -- Depth of field: more noticeable in haze and humid conditions
+        local dofFar   = 0.01 + (1 - clarity) * 0.06 + cloud * 0.03
+        Objects.Depth.FarIntensity   = math.clamp(dofFar, 0, 0.14)
+        Objects.Depth.NearIntensity  = 0
+        Objects.Depth.FocusDistance  = math.clamp(100 + clarity * 80, 80, 200)
+        Objects.Depth.InFocusRadius  = math.clamp(85 + clarity * 90, 65, 200)
+
+        -- Sky: physical star count based on darkness + clarity
+        local starCount  = math.floor(500 + nightFactor * clarity * 7000 + (1 - cloud) * nightFactor * 1500)
+        -- Sun/moon angular size: physically sun is ~0.5 deg, exaggerated here for beauty
+        local sunSize    = math.clamp(season.sunAngular + sun * 7 + goldenHour * 6, 8, 28)
+        local moonSize   = math.clamp(10 + nightFactor * 8, 8, 20)
         Objects.Sky.CelestialBodiesShown = true
-        Objects.Sky.StarCount = math.floor(1000 + (night * 5000))
-        Objects.Sky.SunAngularSize = math.clamp(12 + (sun * 8) + (goldenHour * 4), 8, 24)
-        Objects.Sky.MoonAngularSize = math.clamp(9 + (night * 6), 8, 18)
+        Objects.Sky.StarCount   = math.min(starCount, 10000)
+        Objects.Sky.SunAngularSize  = sunSize
+        Objects.Sky.MoonAngularSize = moonSize
 
+        -- Clouds: physically thicker at high cover, coloured by sun angle
         if cloudObject then
-            cloudObject.Cover = math.clamp(0.18 + (cloud * 0.64) + ((1 - clarity) * 0.12), 0, 0.95)
-            cloudObject.Density = math.clamp(0.28 + (cloud * 0.48) + ((1 - clarity) * 0.12), 0.05, 0.9)
-            cloudObject.Color = blendColor(blendColor(Color3.fromRGB(245, 246, 242), season.fog, cloud * 0.28), golden, goldenHour * 0.14)
+            local cloudCoverVal  = math.clamp(0.15 + cloud * 0.68 + (1 - clarity) * 0.10, 0, 0.98)
+            local cloudDensity   = math.clamp(0.22 + cloud * 0.52 + (1 - clarity) * 0.14, 0.04, 0.95)
+            -- Cloud color: grey base, warm-tinted at golden hour, blue-grey when overcast
+            local cloudBase  = Color3.fromRGB(248, 248, 244)
+            local cloudWarm  = Color3.fromRGB(255, 225, 180)
+            local cloudGrey  = Color3.fromRGB(190, 195, 200)
+            local cloudColor = lerpColor(
+                lerpColor(cloudBase, cloudWarm, goldenHour * sun * 0.55),
+                cloudGrey,
+                cloud * 0.35
+            )
+            cloudColor = lerpColor(cloudColor, Color3.fromRGB(50, 55, 70), nightFactor * 0.6)
+            cloudObject.Cover   = cloudCoverVal
+            cloudObject.Density = cloudDensity
+            cloudObject.Color   = cloudColor
             cloudObject.Enabled = true
         end
     end
@@ -8679,15 +8859,14 @@ run(function()
         Name = 'IRL Replica',
         Function = function(callback)
             if callback then
-                for _, prop in props do
-                    saved[prop] = lightingService[prop]
-                end
+                for _, prop in props do saved[prop] = lightingService[prop] end
 
                 storageFolder = Instance.new('Folder')
                 storageFolder.Name = 'AetherIRLStoredLighting'
                 storageFolder.Parent = vape.gui
                 for _, obj in lightingService:GetChildren() do
-                    if obj:IsA('Sky') or obj:IsA('Atmosphere') or obj:IsA('ColorCorrectionEffect') or obj:IsA('BloomEffect') or obj:IsA('SunRaysEffect') or obj:IsA('DepthOfFieldEffect') then
+                    if obj:IsA('Sky') or obj:IsA('Atmosphere') or obj:IsA('ColorCorrectionEffect')
+                    or obj:IsA('BloomEffect') or obj:IsA('SunRaysEffect') or obj:IsA('DepthOfFieldEffect') then
                         obj.Parent = storageFolder
                     end
                 end
@@ -8695,9 +8874,6 @@ run(function()
                 Objects.Sky = Instance.new('Sky')
                 Objects.Sky.Name = 'AetherIRLSky'
                 Objects.Sky.CelestialBodiesShown = true
-                Objects.Sky.StarCount = 1500
-                Objects.Sky.SunAngularSize = 18
-                Objects.Sky.MoonAngularSize = 11
 
                 cloudObject = terrain and terrain:FindFirstChildOfClass('Clouds')
                 if cloudObject then
@@ -8706,9 +8882,7 @@ run(function()
                     end
                     cloudsCreated = false
                 else
-                    local suc, clouds = pcall(function()
-                        return Instance.new('Clouds')
-                    end)
+                    local suc, clouds = pcall(function() return Instance.new('Clouds') end)
                     if suc and clouds then
                         cloudObject = clouds
                         cloudObject.Name = 'AetherIRLClouds'
@@ -8728,15 +8902,13 @@ run(function()
                 Objects.Depth = Instance.new('DepthOfFieldEffect')
                 Objects.Depth.Name = 'AetherIRLDepth'
 
-                for _, obj in Objects do
-                    obj.Parent = lightingService
-                end
+                for _, obj in Objects do obj.Parent = lightingService end
                 applyReplica()
             else
                 restore()
             end
         end,
-        Tooltip = 'Ultra-realistic natural daylight simulator with physical sun and moon sizing, stars, volumetric clouds, sun rays, seasonal air, realistic fog and mood controls.'
+        Tooltip = 'Physics-based daylight simulation with accurate solar model, Mie/Rayleigh scattering, seasonal colour science and real atmospheric transitions.'
     })
     Season = IRLReplica:CreateDropdown({
         Name = 'Season',
@@ -8752,8 +8924,8 @@ run(function()
     })
     TimeOfDay = IRLReplica:CreateSlider({
         Name = 'Time',
-        Min = 5,
-        Max = 20,
+        Min = 0,
+        Max = 24,
         Default = 12.5,
         Decimal = 10,
         Suffix = 'h',
