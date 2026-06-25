@@ -1,3 +1,25 @@
+local env = ... or {}
+local uipallet = env.uipallet
+local color = env.color
+local tween = env.tween
+local mainapi = env.mainapi
+local httpService = env.httpService
+local inputService = env.inputService
+local guiService = env.guiService
+local runService = env.runService
+local getConfigPath = env.getConfigPath
+local loadJson = env.loadJson
+local refreshConfigProfiles = env.refreshConfigProfiles
+local communityConfigs = env.communityConfigs
+local installBundledConfig = env.installBundledConfig
+local applySavedConfig = env.applySavedConfig
+local removeSavedConfig = env.removeSavedConfig
+local clickgui = env.clickgui
+local scale = env.scale
+local gui = env.gui
+local scaledgui = env.scaledgui
+local tooltip = env.tooltip
+
 --[[
 	Config Manager — Rewrite
 	Drop-in replacement for createConfigManager(categoryapi).
@@ -796,18 +818,7 @@ local function createConfigManager(categoryapi)
 				onSelect = function()
 					selectedCommunity = name
 					previewMode = "community"
-					refreshPreview()
-					-- rebuild community list to update selected highlight
-					clearChildren(communityList)
-					for _, n2 in communityConfigs do
-						local inst2 = isfile("aethercorev2/configs/"..n2..".json")
-						makeRow(communityList, {
-							name = n2, meta = CONFIG_META[n2],
-							selected = n2 == selectedCommunity,
-							isCommunity = true, isInstalled = inst2,
-							onSelect = function() end  -- placeholder, real one set below
-						})
-					end
+					refreshManager()
 				end
 			})
 		end
@@ -1054,3 +1065,5 @@ local function createConfigManager(categoryapi)
 
 	categoryapi.ConfigManager = manager
 end
+
+return createConfigManager
