@@ -3997,7 +3997,7 @@ run(function()
     Functions.Motor = Functions.CFrame
 
     Phase = vape.Categories.Blatant:CreateModule({
-    	Name = 'Phase',
+    	Name = 'No Clip',
     	Function = function(callback)
     		if callback then
     			Phase:Clean(runService.Stepped:Connect(function()
@@ -4023,7 +4023,7 @@ run(function()
     			fflag = nil
     		end
     	end,
-    	Tooltip = 'Lets you Phase/Clip through walls. (Hold shift to use Phase over spider)',
+    	Tooltip = 'Lets you Phase/Clip through walls. (Hold shift to use No Clip over spider)',
     })
     Mode = Phase:CreateDropdown({
     	Name = 'Mode',
