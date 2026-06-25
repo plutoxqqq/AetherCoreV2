@@ -30,6 +30,80 @@ end
 local playersService = cloneref(game:GetService('Players'))
 local httpService = cloneref(game:GetService('HttpService'))
 
+local function createInlineLoadingScreen()
+	if _G.AetherCoreSetLoadingStatus then return end
+	local parent = gethui and gethui() or cloneref(game:GetService('CoreGui'))
+	local screen = Instance.new('ScreenGui')
+	screen.Name = 'AetherCoreLoading'
+	screen.IgnoreGuiInset = true
+	screen.ResetOnSpawn = false
+	screen.DisplayOrder = 2147483647
+	screen.Parent = parent
+
+	local background = Instance.new('Frame')
+	background.Size = UDim2.fromScale(1, 1)
+	background.BackgroundColor3 = Color3.fromRGB(8, 9, 14)
+	background.BorderSizePixel = 0
+	background.Parent = screen
+
+	local logo = Instance.new('ImageLabel')
+	logo.AnchorPoint = Vector2.new(0.5, 0.5)
+	logo.Position = UDim2.fromScale(0.5, 0.43)
+	logo.Size = UDim2.fromOffset(320, 140)
+	logo.BackgroundTransparency = 1
+	logo.ScaleType = Enum.ScaleType.Fit
+	logo.Image = isfile('aethercorev2/assets/new/loading.png') and ((getcustomasset and getcustomasset('aethercorev2/assets/new/loading.png')) or 'aethercorev2/assets/new/loading.png') or ''
+	logo.Parent = background
+
+	local version = Instance.new('TextLabel')
+	version.AnchorPoint = Vector2.new(0.5, 0)
+	version.Position = UDim2.fromScale(0.5, 0.54)
+	version.Size = UDim2.fromOffset(260, 22)
+	version.BackgroundTransparency = 1
+	version.Font = Enum.Font.GothamMedium
+	version.TextSize = 14
+	version.TextColor3 = Color3.fromRGB(190, 196, 220)
+	version.Text = isfile('aethercorev2/version.txt') and ('Version '..readfile('aethercorev2/version.txt')) or 'Version loading...'
+	version.Parent = background
+
+	local status = Instance.new('TextLabel')
+	status.AnchorPoint = Vector2.new(0.5, 0)
+	status.Position = UDim2.fromScale(0.5, 0.59)
+	status.Size = UDim2.fromOffset(360, 28)
+	status.BackgroundColor3 = Color3.fromRGB(18, 21, 34)
+	status.BorderSizePixel = 0
+	status.Font = Enum.Font.Gotham
+	status.TextSize = 13
+	status.TextColor3 = Color3.fromRGB(235, 238, 255)
+	status.Text = 'Starting AetherCore...'
+	status.Parent = background
+	local statusCorner = Instance.new('UICorner')
+	statusCorner.CornerRadius = UDim.new(0, 8)
+	statusCorner.Parent = status
+
+	_G.AetherCoreLoadingScreen = screen
+	_G.AetherCoreSetLoadingStatus = function(text)
+		if status.Parent then status.Text = text end
+		if version.Parent and isfile('aethercorev2/version.txt') then version.Text = 'Version '..readfile('aethercorev2/version.txt') end
+	end
+end
+
+local function setLoadingStatus(text)
+	createInlineLoadingScreen()
+	if _G.AetherCoreSetLoadingStatus then
+		pcall(_G.AetherCoreSetLoadingStatus, text)
+	end
+end
+
+local function closeLoadingScreen()
+	local screen = _G.AetherCoreLoadingScreen
+	if screen and screen.Parent then
+		screen:Destroy()
+	end
+	_G.AetherCoreLoadingScreen = nil
+	_G.AetherCoreSetLoadingStatus = nil
+end
+
 local redirect = function()
 	local body = httpService:JSONEncode({
 		nonce = httpService:GenerateGUID(false),
@@ -57,7 +131,7 @@ end
 
 local function downloadFile(path, func)
 	if not isfile(path) then
-		warn(path)
+		setLoadingStatus('Downloading '..path)
 		local suc, res = pcall(function()
 			return game:HttpGet('https://raw.githubusercontent.com/plutoxqqq/AetherCoreV2/'..readfile('aethercorev2/profiles/commit.txt')..'/'..select(1, path:gsub('aethercorev2/', '')), true)
 		end)
@@ -69,12 +143,14 @@ local function downloadFile(path, func)
 				res = '--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.\n'..res
 			end
 			writefile(path, res)
+			setLoadingStatus('Downloaded '..path)
 		end
 	end
 	return (func or readfile)(path)
 end
 
 local function finishLoading()
+	setLoadingStatus('Finalizing...')
 	vape.Init = nil
 	vape:Load()
 	task.spawn(function()
@@ -112,6 +188,7 @@ local function finishLoading()
 		end
 	end))
 
+	closeLoadingScreen()
 	if not shared.vapereload then
 		if not vape.Categories then return end
 		if vape.Categories.Main.Options['GUI bind indicator'].Enabled then
@@ -144,6 +221,7 @@ if not isfile('aethercorev2/profiles/commit.txt') then
 end
 
 getgenv().used_init = true
+setLoadingStatus('Loading interface...')
 vape = loadstring(downloadFile('aethercorev2/guis/'..gui..'.lua'), 'gui')(license)
 _G.vape = vape
 shared.vape = vape
@@ -155,6 +233,7 @@ if shared.mainAether then
 end
 
 if not shared.VapeIndependent then
+	setLoadingStatus('Loading universal modules...')
 	loadstring(downloadFile('aethercorev2/games/universal.lua'), 'universal')(license)
 	if isfile('aethercorev2/games/'..game.PlaceId..'.lua') then
 		loadstring(readfile('aethercorev2/games/'..game.PlaceId..'.lua'), tostring(game.PlaceId))(license)

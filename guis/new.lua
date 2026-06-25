@@ -95,6 +95,7 @@ local getcustomassets = {
 	['aethercorev2/assets/new/inventoryicon.png'] = 'rbxassetid://14928011633',
 	['aethercorev2/assets/new/legit.png'] = 'rbxassetid://14425650534',
 	['aethercorev2/assets/new/legittab.png'] = 'rbxassetid://14426740825',
+	['aethercorev2/assets/new/loading.png'] = '',
 	['aethercorev2/assets/new/miniicon.png'] = 'rbxassetid://14368326029',
 	['aethercorev2/assets/new/notification.png'] = 'rbxassetid://16738721069',
 	['aethercorev2/assets/new/overlaysicon.png'] = 'rbxassetid://14368339581',
@@ -7480,6 +7481,34 @@ local function createConfigManager(categoryapi)
 	end
 
 	categoryapi.ConfigManager = manager
+end
+local communityConfigManagerLoader = loadstring(downloadFile('aethercorev2/guis/communityconfigs.lua'), 'communityconfigs')
+if communityConfigManagerLoader then
+	local loadedConfigManager = communityConfigManagerLoader({
+		uipallet = uipallet,
+		color = color,
+		tween = tween,
+		mainapi = mainapi,
+		httpService = httpService,
+		inputService = inputService,
+		guiService = guiService,
+		runService = runService,
+		getConfigPath = getConfigPath,
+		loadJson = loadJson,
+		refreshConfigProfiles = refreshConfigProfiles,
+		communityConfigs = communityConfigs,
+		installBundledConfig = installBundledConfig,
+		applySavedConfig = applySavedConfig,
+		removeSavedConfig = removeSavedConfig,
+		clickgui = clickgui,
+		scale = scale,
+		gui = gui,
+		scaledgui = scaledgui,
+		tooltip = tooltip
+	})
+	if loadedConfigManager then
+		createConfigManager = loadedConfigManager
+	end
 end
 createConfigManager(profiles)
 
