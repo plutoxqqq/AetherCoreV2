@@ -299,10 +299,8 @@ local function finishLoading()
 		end
 	end))
 
-	closeLoadingScreen()
 	if not shared.vapereload then
-		if not vape.Categories then return end
-		if vape.Categories.Main.Options['GUI bind indicator'].Enabled then
+		if vape.Categories and vape.Categories.Main.Options['GUI bind indicator'].Enabled then
 			if vape.Place ~= 6872274481 then
 				--task.spawn(redirect)
 			end
@@ -317,6 +315,10 @@ local function finishLoading()
 			end)
 		end
 	end
+
+	setLoadingStatus('Finished Loading!', 1)
+	task.wait(2)
+	closeLoadingScreen()
 end
 
 if not isfile('aethercorev2/profiles/gui.txt') then
@@ -363,6 +365,5 @@ if not shared.VapeIndependent then
 else
 	vape.Init = finishLoading
 	setLoadingStatus('Ready for independent initialization.', 1)
-	task.delay(1, closeLoadingScreen)
 	return vape
 end
