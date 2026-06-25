@@ -243,6 +243,8 @@ local function downloadFile(path, func)
 end
 
 
+local loadingWarnings = {}
+
 local function runLoadingChunk(source, chunkName, ...)
 	local chunk = loadstring(source, chunkName)
 	if not chunk then
@@ -256,6 +258,23 @@ local function runLoadingChunk(source, chunkName, ...)
 	if not ok then
 		closeLoadingScreen()
 		error(result)
+	end
+	return result
+end
+
+local function runOptionalLoadingChunk(source, chunkName, ...)
+	local chunk = loadstring(source, chunkName)
+	if not chunk then
+		table.insert(loadingWarnings, 'Failed to compile '..chunkName)
+		return nil
+	end
+	local args = {...}
+	local ok, result = xpcall(function()
+		return chunk(table.unpack(args))
+	end, debug.traceback)
+	if not ok then
+		table.insert(loadingWarnings, result)
+		return nil
 	end
 	return result
 end
@@ -300,7 +319,7 @@ local function finishLoading()
 	end))
 
 	if not shared.vapereload then
-		if vape.Categories and vape.Categories.Main.Options['GUI bind indicator'].Enabled then
+		if vape.Categories and vape.Categories.Main and vape.Categories.Main.Options and vape.Categories.Main.Options['GUI bind indicator'] and vape.Categories.Main.Options['GUI bind indicator'].Enabled then
 			if vape.Place ~= 6872274481 then
 				--task.spawn(redirect)
 			end
@@ -314,11 +333,14 @@ local function finishLoading()
 				end
 			end)
 		end
+		if #loadingWarnings > 0 then
+			vape:CreateNotification('AetherCore', 'Loaded with non-critical game module warnings. Check the console for details.', 10, 'info')
+			warn(table.concat(loadingWarnings, '\n'))
+		end
 	end
 
 	setLoadingStatus('Finished Loading!', 1)
-	task.wait(2)
-	closeLoadingScreen()
+	task.delay(2, closeLoadingScreen)
 end
 
 if not isfile('aethercorev2/profiles/gui.txt') then
@@ -350,14 +372,14 @@ if not shared.VapeIndependent then
 	setLoadingStatus('Loading universal modules...', 0.88)
 	runLoadingChunk(downloadFile('aethercorev2/games/universal.lua'), 'universal', license)
 	if isfile('aethercorev2/games/'..game.PlaceId..'.lua') then
-		runLoadingChunk(readfile('aethercorev2/games/'..game.PlaceId..'.lua'), tostring(game.PlaceId), license)
+		runOptionalLoadingChunk(readfile('aethercorev2/games/'..game.PlaceId..'.lua'), tostring(game.PlaceId), license)
 	else
 		if not shared.VapeDeveloper then
 			local suc, res = pcall(function()
 				return game:HttpGet('https://raw.githubusercontent.com/plutoxqqq/AetherCoreV2/'..readfile('aethercorev2/profiles/commit.txt')..'/games/'..game.PlaceId..'.lua', true)
 			end)
 			if suc and res ~= '404: Not Found' then
-				runLoadingChunk(downloadFile('aethercorev2/games/'..game.PlaceId..'.lua'), tostring(game.PlaceId), license)
+				runOptionalLoadingChunk(downloadFile('aethercorev2/games/'..game.PlaceId..'.lua'), tostring(game.PlaceId), license)
 			end
 		end
 	end
