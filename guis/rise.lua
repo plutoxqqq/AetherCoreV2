@@ -2669,14 +2669,13 @@ mainapi:CreateCategory({
 	RiseIcon = 'g'
 })
 mainapi:CreateCategory({
+	Name = 'Legit',
+	RiseIcon = 'f'
+})
+mainapi:CreateCategory({
 	Name = 'Exploit',
 	RealName = 'World',
 	RiseIcon = 'a'
-})
-mainapi:CreateCategory({
-	Name = 'Ghost',
-	RealName = 'Legit',
-	RiseIcon = 'f'
 })
 mainapi.Categories.Minigames = mainapi.Categories.Utility
 mainapi.Categories.Inventory = mainapi.Categories.Utility
