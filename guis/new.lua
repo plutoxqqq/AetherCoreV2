@@ -6237,6 +6237,11 @@ mainapi:CreateCategory({
 	Size = UDim2.fromOffset(15, 14)
 })
 mainapi:CreateCategory({
+	Name = 'Legit',
+	Icon = getcustomasset('aethercorev2/assets/new/legit.png'),
+	Size = UDim2.fromOffset(15, 14)
+})
+mainapi:CreateCategory({
 	Name = 'Utility',
 	Icon = getcustomasset('aethercorev2/assets/new/utilityicon.png'),
 	Size = UDim2.fromOffset(15, 14)
@@ -7771,10 +7776,11 @@ guipane:CreateButton({
 			BlatantCategory = 3,
 			RenderCategory = 4,
 			VisualsCategory = 5,
-			UtilityCategory = 6,
-			WorldCategory = 7,
-			InventoryCategory = 8,
-			MinigamesCategory = 9,
+			LegitCategory = 6,
+			UtilityCategory = 7,
+			WorldCategory = 8,
+			InventoryCategory = 9,
+			MinigamesCategory = 10,
 			FriendsCategory = 10,
 			ProfilesCategory = 11
 		}

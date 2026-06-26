@@ -17257,7 +17257,7 @@ run(function()
     local Color
     local Type
     
-    ArmorTrims = vape.Legit:CreateModule({
+    ArmorTrims = vape.Categories.Legit:CreateModule({
         Name = 'Armor Trims',
         Function = function(callback)
             if callback then
@@ -17321,7 +17321,7 @@ run(function()
     	return
     end
     
-    BedAlarm = vape.Legit:CreateModule({
+    BedAlarm = vape.Categories.Legit:CreateModule({
     	Name = 'Bed Alarm',
     	Function = function(callback)
     		if callback then
@@ -17397,7 +17397,7 @@ run(function()
     local List
     local NameToId = {}
     
-    BedBreakEffect = vape.Legit:CreateModule({
+    BedBreakEffect = vape.Categories.Legit:CreateModule({
         Name = 'Bed Break Effect',
         Function = function(callback)
             if callback then
@@ -17431,7 +17431,7 @@ run(function()
     local Fill
     local Outline
     
-    BlockOverlay = vape.Legit:CreateModule({
+    BlockOverlay = vape.Categories.Legit:CreateModule({
         Name = 'Block Overlay',
         Function = function(callback)
             if callback then
@@ -17460,7 +17460,7 @@ run(function()
 end)
 
 run(function()
-    vape.Legit:CreateModule({
+    vape.Categories.Legit:CreateModule({
         Name = 'Clean Kit',
         Function = function(callback)
             if callback then
@@ -17480,7 +17480,7 @@ run(function()
     local old
     local Image
     
-    local Crosshair = vape.Legit:CreateModule({
+    local Crosshair = vape.Categories.Legit:CreateModule({
         Name = 'Crosshair',
         Function = function(callback)
             if callback then
@@ -17525,7 +17525,7 @@ run(function()
     tab = suc and tab or {}
     local oldvalues, oldfont = {}
     
-    DamageIndicator = vape.Legit:CreateModule({
+    DamageIndicator = vape.Categories.Legit:CreateModule({
         Name = 'Damage Indicator',
         Function = function(callback)
             if callback then
@@ -17612,7 +17612,7 @@ run(function()
     local DeviceSpoofer
     local Device
     
-    DeviceSpoofer = vape.Legit:CreateModule({
+    DeviceSpoofer = vape.Categories.Legit:CreateModule({
         Name = 'Device Spoofer',
         Function = function(callback)
             if callback then
@@ -17641,7 +17641,7 @@ run(function()
     local Value
     local old, old2
     
-    FOV = vape.Legit:CreateModule({
+    FOV = vape.Categories.Legit:CreateModule({
         Name = 'FOV',
         Function = function(callback)
             if callback then
@@ -17680,7 +17680,7 @@ run(function()
     local Visualizer
     local effects, util = {}, {}
     
-    FPSBoost = vape.Legit:CreateModule({
+    FPSBoost = vape.Categories.Legit:CreateModule({
         Name = 'FPS Boost',
         Function = function(callback)
             if callback then
@@ -17757,7 +17757,7 @@ run(function()
     local Color
     local done = {}
     
-    HitColor = vape.Legit:CreateModule({
+    HitColor = vape.Categories.Legit:CreateModule({
         Name = 'Hit Color',
         Function = function(callback)
             if callback then 
@@ -17791,7 +17791,7 @@ run(function()
 end)
 
 run(function()
-    vape.Legit:CreateModule({
+    vape.Categories.Legit:CreateModule({
         Name = 'Hit Fix',
         Function = function(callback)
             debug.setconstant(bedwars.SwordController.swingSwordAtMouse, 23, callback and 'raycast' or 'Raycast')
@@ -17840,7 +17840,7 @@ run(function()
             end
         end
     
-        Interface = vape.Legit:CreateModule({
+        Interface = vape.Categories.Legit:CreateModule({
             Name = 'Interface',
             Function = function(callback)
                 for i, v in (callback and new or old) do
@@ -18000,7 +18000,7 @@ run(function()
         end
     }
     
-    KillEffect = vape.Legit:CreateModule({
+    KillEffect = vape.Categories.Legit:CreateModule({
         Name = 'Kill Effect',
         Function = function(callback)
             if callback then
@@ -18140,7 +18140,7 @@ run(function()
         effect:Destroy()
     end
     
-    PotionStatus = vape.Legit:CreateModule({
+    PotionStatus = vape.Categories.Legit:CreateModule({
         Name = 'Potion Status',
         Tooltip = 'Shows you currently active effects',
         Function = function(callback)
@@ -18188,7 +18188,7 @@ run(function()
     local ReachDisplay
     local label
     
-    ReachDisplay = vape.Legit:CreateModule({
+    ReachDisplay = vape.Categories.Legit:CreateModule({
         Name = 'Reach Display',
         Function = function(callback)
             if callback then
@@ -18278,7 +18278,7 @@ run(function()
         end
     end
     
-    SongBeats = vape.Legit:CreateModule({
+    SongBeats = vape.Categories.Legit:CreateModule({
         Name = 'Song Beats',
         Function = function(callback)
             if callback then
@@ -18355,7 +18355,7 @@ run(function()
     local soundlist = {}
     local old
     
-    SoundChanger = vape.Legit:CreateModule({
+    SoundChanger = vape.Categories.Legit:CreateModule({
         Name = 'Sound Changer',
         Function = function(callback)
             if callback then
@@ -18391,10 +18391,84 @@ run(function()
 end)
 
 run(function()
+    local KillfeedSpoofer
+    local KillerName
+    local VictimName
+    local WeaponName
+    local MessageText
+    local oldkillfeed
+
+    local function spoofKillfeedValue(value, depth)
+        if type(value) == 'string' then
+            if value:find('{killer}') or value:find('{victim}') or value:find('{weapon}') then
+                return value
+                    :gsub('{killer}', KillerName.Value)
+                    :gsub('{victim}', VictimName.Value)
+                    :gsub('{weapon}', WeaponName.Value)
+            end
+            return MessageText.Value ~= '' and MessageText.Value or value
+        end
+        if type(value) ~= 'table' or depth > 4 then
+            return value
+        end
+
+        local copy = {}
+        for i, v in value do
+            copy[i] = spoofKillfeedValue(v, depth + 1)
+        end
+        copy.killerName = KillerName.Value
+        copy.killer = KillerName.Value
+        copy.victimName = VictimName.Value
+        copy.victim = VictimName.Value
+        copy.weaponName = WeaponName.Value
+        copy.weapon = WeaponName.Value
+        copy.message = MessageText.Value
+        copy.text = MessageText.Value
+        return copy
+    end
+
+    KillfeedSpoofer = vape.Categories.Legit:CreateModule({
+        Name = 'Killfeed Spoofer',
+        Function = function(callback)
+            if callback and not oldkillfeed then
+                oldkillfeed = bedwars.KillFeedController.addToKillFeed
+                bedwars.KillFeedController.addToKillFeed = function(self, ...)
+                    local args = {...}
+                    for i, v in args do
+                        args[i] = spoofKillfeedValue(v, 0)
+                    end
+                    return oldkillfeed(self, table.unpack(args))
+                end
+            elseif oldkillfeed then
+                bedwars.KillFeedController.addToKillFeed = oldkillfeed
+                oldkillfeed = nil
+            end
+        end,
+        Tooltip = 'Edit killfeed messages into client-sided, custom ones.'
+    })
+    KillerName = KillfeedSpoofer:CreateTextBox({
+        Name = 'Killer',
+        Default = lplr.DisplayName
+    })
+    VictimName = KillfeedSpoofer:CreateTextBox({
+        Name = 'Victim',
+        Default = 'Enemy'
+    })
+    WeaponName = KillfeedSpoofer:CreateTextBox({
+        Name = 'Weapon',
+        Default = 'Sword'
+    })
+    MessageText = KillfeedSpoofer:CreateTextBox({
+        Name = 'Message',
+        Default = '{killer} eliminated {victim} with {weapon}'
+    })
+end)
+
+run(function()
     local TexturePacks
     local Pack
     
-    TexturePacks = vape.Legit:CreateModule({
+    TexturePacks = vape.Categories.Legit:CreateModule({
     	Name = 'Texture Pack',
     	Function = function(callback)
     		if callback then
@@ -18457,7 +18531,7 @@ run(function()
             end
         end
     
-        UICleanup = vape.Legit:CreateModule({
+        UICleanup = vape.Categories.Legit:CreateModule({
             Name = 'UI Cleanup',
             Function = function(callback)
                 for i, v in (callback and new or old) do
@@ -18579,7 +18653,7 @@ run(function()
     local Rots = {}
     local old, oldc1
     
-    Viewmodel = vape.Legit:CreateModule({
+    Viewmodel = vape.Categories.Legit:CreateModule({
         Name = 'Viewmodel',
         Function = function(callback)
             local viewmodel = gameCamera:FindFirstChild('Viewmodel')
@@ -18680,7 +18754,7 @@ run(function()
     local List
     local NameToId = {}
     
-    WinEffect = vape.Legit:CreateModule({
+    WinEffect = vape.Categories.Legit:CreateModule({
         Name = 'Win Effect',
         Function = function(callback)
             if callback then

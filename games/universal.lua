@@ -8107,7 +8107,7 @@ run(function()
     	end
     end
 
-    Atmosphere = vape.Legit:CreateModule({
+    Atmosphere = vape.Categories.Legit:CreateModule({
     	Name = 'Atmosphere',
     	Function = function(callback)
     		if callback then
@@ -8200,7 +8200,7 @@ run(function()
     local FadeOut
     local trail, point, point2
 
-    Breadcrumbs = vape.Legit:CreateModule({
+    Breadcrumbs = vape.Categories.Legit:CreateModule({
     	Name = 'Breadcrumbs',
     	Function = function(callback)
     		if callback then
@@ -8324,7 +8324,7 @@ run(function()
     	motor.Parent = part
     end
 
-    Cape = vape.Legit:CreateModule({
+    Cape = vape.Categories.Legit:CreateModule({
     	Name = 'Cape',
     	Function = function(callback)
     		if callback then
@@ -8395,7 +8395,7 @@ run(function()
     local Color
     local hat
 
-    ChinaHat = vape.Legit:CreateModule({
+    ChinaHat = vape.Categories.Legit:CreateModule({
     	Name = 'China Hat',
     	Function = function(callback)
     		if callback then
@@ -8476,7 +8476,7 @@ run(function()
     local TwentyFourHour
     local label
 
-    Clock = vape.Legit:CreateModule({
+    Clock = vape.Categories.Legit:CreateModule({
     	Name = 'Clock',
     	Category = 'Hud',
     	Function = function(callback)
@@ -8529,7 +8529,7 @@ run(function()
     local gui, texts = nil, {}
     local division = game.GameId == 2619619496 and 3 or 1
 
-    Coords = vape.Legit:CreateModule({
+    Coords = vape.Categories.Legit:CreateModule({
     	Name = 'Coords',
     	Category = 'Hud',
     	Size = UDim2.fromOffset(288, 64),
@@ -8797,7 +8797,7 @@ run(function()
     	end
     end
 
-    Disguise = vape.Legit:CreateModule({
+    Disguise = vape.Categories.Legit:CreateModule({
     	Name = 'Disguise',
     	Function = function(callback)
     		if callback then
@@ -8862,7 +8862,7 @@ run(function()
     	notif('Vape', 'FFlags applied, Go in a new game to take effect', 12, 'info')
     end
 
-    FFlag = vape.Legit:CreateModule({
+    FFlag = vape.Categories.Legit:CreateModule({
     	Name = 'FFlag Editor',
     	Disabled = not setfflag,
     	DsiabledTooltip = 'This module requires a specific function to work, Which your executor (' .. ({
@@ -8889,7 +8889,7 @@ run(function()
     local Value
     local oldfov
 
-    FOV = vape.Legit:CreateModule({
+    FOV = vape.Categories.Legit:CreateModule({
     	Name = 'FOV',
     	Function = function(callback)
     		if callback then
@@ -8919,7 +8919,7 @@ run(function()
     local FPS
     local label
 
-    FPS = vape.Legit:CreateModule({
+    FPS = vape.Categories.Legit:CreateModule({
     	Name = 'FPS',
     	Category = 'Hud',
     	Function = function(callback)
@@ -9010,7 +9010,7 @@ run(function()
     	keys[keybutton] = { Key = key }
     end
 
-    Keystrokes = vape.Legit:CreateModule({
+    Keystrokes = vape.Categories.Legit:CreateModule({
     	Name = 'Keystrokes',
     	Category = 'Hud',
     	Function = function(callback)
@@ -9136,7 +9136,7 @@ run(function()
     local Memory
     local label
 
-    Memory = vape.Legit:CreateModule({
+    Memory = vape.Categories.Legit:CreateModule({
     	Name = 'Memory',
     	Category = 'Hud',
     	Function = function(callback)
@@ -9186,7 +9186,7 @@ run(function()
     local Ping
     local label
 
-    Ping = vape.Legit:CreateModule({
+    Ping = vape.Categories.Legit:CreateModule({
     	Name = 'Ping',
     	Category = 'Hud',
     	Function = function(callback)
@@ -9281,7 +9281,7 @@ run(function()
     	end
     end
 
-    SongBeats = vape.Legit:CreateModule({
+    SongBeats = vape.Categories.Legit:CreateModule({
     	Name = 'Song Beats',
     	Function = function(callback)
     		if callback then
@@ -9365,7 +9365,7 @@ run(function()
     local Speedmeter
     local label
 
-    Speedmeter = vape.Legit:CreateModule({
+    Speedmeter = vape.Categories.Legit:CreateModule({
     	Name = 'Speedmeter',
     	Category = 'Hud',
     	Function = function(callback)
@@ -9420,7 +9420,7 @@ run(function()
     local Value
     local old
 
-    TimeChanger = vape.Legit:CreateModule({
+    TimeChanger = vape.Categories.Legit:CreateModule({
     	Name = 'Time Changer',
     	Function = function(callback)
     		if callback then
