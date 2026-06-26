@@ -112,6 +112,61 @@ local store = {
 }
 getgenv().store = store
 
+local bedFightProfile = {
+	BedTags = {'bed', 'Bed', 'BedFightBed'},
+	WoolNames = {
+		wool = true,
+		wool_white = true,
+		wool_red = true,
+		wool_blue = true,
+		wool_green = true,
+		wool_yellow = true,
+		wool_orange = true,
+		wool_purple = true,
+		wool_pink = true,
+		wool_cyan = true,
+		wool_black = true
+	}
+}
+
+local function hasAnyTag(obj, tags)
+	if not obj then return false end
+	for _, tag in tags do
+		if obj:HasTag(tag) then
+			return true
+		end
+	end
+	return false
+end
+
+local function getItemType(item)
+	if type(item) == 'string' then return item end
+	return item and (item.itemType or (item.tool and item.tool.Name) or item.Name)
+end
+
+local function isWoolItem(item)
+	local itemType = getItemType(item)
+	return itemType and (bedFightProfile.WoolNames[itemType] or itemType:lower():find('wool', 1, true) ~= nil)
+end
+
+local function isBedBlock(block)
+	if not block then return false end
+	local name = block.Name:lower()
+	return name == 'bed' or name:find('bed', 1, true) ~= nil or hasAnyTag(block, bedFightProfile.BedTags)
+end
+
+local function getBedTeamId(block)
+	return block and (block:GetAttribute('Team') or block:GetAttribute('TeamId') or block:GetAttribute('TeamID') or block:GetAttribute('team'))
+end
+
+local function isOwnBed(block)
+	local bedTeam = getBedTeamId(block)
+	if bedTeam ~= nil and lplr:GetAttribute('Team') ~= nil then
+		return tostring(bedTeam) == tostring(lplr:GetAttribute('Team'))
+	end
+	return block and block:GetAttribute('PlacedByUserId') == lplr.UserId
+end
+
 local Reach = {}
 local HitBoxes = {}
 local InfiniteFly = {}
@@ -251,10 +306,10 @@ local function getTool(breakType)
 	return bestTool, bestToolSlot
 end
 
-local function getWool()
+local function getWool(inv)
 	for _, wool in (inv or store.inventory.inventory.items) do
-		if wool.itemType:find('wool') then
-			return wool and wool.itemType, wool and wool.amount
+		if isWoolItem(wool) then
+			return getItemType(wool), wool and wool.amount
 		end
 	end
 end
@@ -779,7 +834,231 @@ run(function()
 end)
 
 local CheatersFlagged = {}
+local function setupNativeBedFight()
+	local remotesFolder = replicatedStorage:FindFirstChild('Remotes')
+	local itemRemotes = remotesFolder and remotesFolder:FindFirstChild('ItemsRemotes')
+	local modulesFolder = replicatedStorage:FindFirstChild('Modules')
+	local dataModules = modulesFolder and modulesFolder:FindFirstChild('DataModules')
+	if not itemRemotes or not dataModules then
+		return false
+	end
+
+	local function safeRequire(obj, fallback)
+		local suc, res = obj and pcall(require, obj)
+		return suc and res or fallback
+	end
+
+	local itemData = safeRequire(dataModules:FindFirstChild('ItemsData'), {})
+	local swordData = safeRequire(dataModules:FindFirstChild('SwordsData'), {})
+	local rangedData = safeRequire(dataModules:FindFirstChild('RangedData'), {})
+	local projectileData = safeRequire(dataModules:FindFirstChild('ProjectilesData'), {})
+	local blockData = safeRequire(dataModules:FindFirstChild('BlocksData'), {})
+	local inventoryHandler = safeRequire(modulesFolder:FindFirstChild('InventoryHandler'), {})
+	local velocityUtils = safeRequire(modulesFolder:FindFirstChild('VelocityUtils'), {})
+
+	local nativeRemotes = {
+		EquipItem = itemRemotes:FindFirstChild('EquipTool'),
+		AttackEntity = itemRemotes:FindFirstChild('SwordHit'),
+		FireProjectile = itemRemotes:FindFirstChild('ShootProjectile')
+	}
+
+	local itemMeta = {}
+	for name, data in itemData do
+		itemMeta[name] = itemMeta[name] or {}
+		itemMeta[name].image = data.Image or data.Icon or data.ImageId or ''
+	end
+	for name, data in swordData do
+		itemMeta[name] = itemMeta[name] or {}
+		itemMeta[name].sword = {
+			damage = data.Damage or data.damage or data.AttackDamage or 20,
+			attackSpeed = data.Cooldown or data.cooldown or data.SwingCooldown or 0.42
+		}
+	end
+	for name, data in rangedData do
+		itemMeta[name] = itemMeta[name] or {}
+		itemMeta[name].projectileSource = {
+			ammoItemTypes = data.Ammo and {data.Ammo} or {'arrow'},
+			projectileType = function()
+				return data.Projectile or data.ProjectileName or name
+			end
+		}
+	end
+	for name, data in blockData do
+		itemMeta[name] = itemMeta[name] or {}
+		itemMeta[name].block = {breakType = data.BreakType or data.breakType or (isWoolItem(name) and 'wool' or 'stone')}
+		itemMeta[name].breakBlock = {
+			wood = data.BreakPower or data.Damage or 2,
+			stone = data.BreakPower or data.Damage or 2,
+			wool = data.BreakPower or data.Damage or 2
+		}
+	end
+
+	local projectileMeta = {}
+	for name, data in projectileData do
+		projectileMeta[name] = {
+			combat = {damage = data.Damage or data.damage or 0},
+			launchVelocity = data.Velocity or data.LaunchVelocity or 100,
+			gravitationalAcceleration = data.Gravity or data.GravitationalAcceleration or 196.2
+		}
+	end
+
+	local function fireRemote(remote, ...)
+		if not remote then return end
+		if remote:IsA('RemoteEvent') then
+			return remote:FireServer(...)
+		end
+		if remote:IsA('RemoteFunction') then
+			return remote:InvokeServer(...)
+		end
+	end
+
+	local function refreshInventory()
+		local inv = lplr:FindFirstChild('Inventory')
+		local items, hotbar = {}, {}
+		if inv then
+			for _, item in inv:GetChildren() do
+				table.insert(items, {
+					itemType = item.Name,
+					tool = item,
+					amount = item:GetAttribute('Amount') or item:GetAttribute('amount') or 1
+				})
+			end
+		end
+		if inventoryHandler.Inventories then
+			for _, invData in inventoryHandler.Inventories do
+				for index, slot in invData.Items or {} do
+					if slot.Name ~= '' then
+						hotbar[index] = {
+							item = inv and inv:FindFirstChild(slot.Name) or {tool = slot}
+						}
+					end
+				end
+			end
+		end
+		store.inventory = {
+			inventory = {items = items, armor = {}},
+			hotbar = hotbar,
+			hotbarSlot = store.inventory.hotbarSlot or 0
+		}
+		store.tools.sword = getSword()
+		for _, breakType in {'stone', 'wood', 'wool'} do
+			store.tools[breakType] = getTool(breakType)
+		end
+		vapeEvents.InventoryChanged:Fire()
+		vapeEvents.InventoryAmountChanged:Fire()
+	end
+
+	local noopController = setmetatable({}, {__index = function(self, index)
+		local value = function() end
+		rawset(self, index, value)
+		return value
+	end})
+
+	bedwars = setmetatable({
+		AppController = {isLayerOpen = function() return false end, isAppOpen = function() return false end},
+		UILayers = {MAIN = 'MAIN'},
+		BowConstantsTable = {RelX = 0, RelY = 0, RelZ = 0},
+		Client = {
+			Get = function(_, remoteName)
+				local remote = nativeRemotes[remoteName] or nativeRemotes[remotes[remoteName]] or nativeRemotes.AttackEntity
+				return {
+					instance = remote,
+					SendToServer = function(_, attackTable, ...)
+						if remote == nativeRemotes.AttackEntity and type(attackTable) == 'table' then
+							local weapon = getItemType(attackTable.weapon) or (store.hand.tool and store.hand.tool.Name)
+							return fireRemote(remote, weapon, attackTable.entityInstance)
+						end
+						return fireRemote(remote, attackTable, ...)
+					end,
+					CallServer = function(_, ...) return fireRemote(remote, ...) end,
+					CallServerAsync = function(_, ...)
+						local args = table.pack(...)
+						return {andThen = function(_, cb) cb(fireRemote(remote, table.unpack(args, 1, args.n))) end}
+					end
+				}
+			end,
+			WaitFor = function()
+				return {andThen = function(_, cb) cb({Connect = function() return {Disconnect = function() end} end}) end}
+			end
+		},
+		CombatConstant = {RAYCAST_SWORD_CHARACTER_DISTANCE = 14.4},
+		getIcon = function(item) return (itemMeta[item.itemType] or {}).image or '' end,
+		getInventory = function(plr)
+			local inv = plr and plr:FindFirstChild('Inventory')
+			local items = {}
+			if inv then
+				for _, item in inv:GetChildren() do
+					table.insert(items, {itemType = item.Name, tool = item, amount = item:GetAttribute('Amount') or 1})
+				end
+			end
+			return {items = items, armor = {}}
+		end,
+		ItemMeta = itemMeta,
+		ProjectileMeta = projectileMeta,
+		KnockbackUtil = {
+			applyKnockback = function(root, _, dir, knockback)
+				if root and velocityUtils.Create then
+					return velocityUtils.Create(root, dir * ((knockback and knockback.horizontal) or 20), 0.2)
+				end
+			end,
+			calculateKnockbackVelocity = function(_, _, knockback)
+				return Vector3.new((knockback and knockback.horizontal) or 0, (knockback and knockback.vertical) or 0, 0)
+			end
+		},
+		SprintController = {getMovementStatusModifier = function() return {getModifiers = function() return {} end} end, stopSprinting = function() end, startSprinting = function() end},
+		SwordController = {
+			lastAttack = 0,
+			lastSwing = 0,
+			isClickingTooFast = function() return false end,
+			playSwordEffect = function() end,
+			swingSwordAtMouse = function(self)
+				self.lastSwing = tick()
+			end
+		},
+		BlockController = {
+			getBlockPosition = function(_, pos) return Vector3.new(math.round(pos.X / 3), math.round(pos.Y / 3), math.round(pos.Z / 3)) end,
+			getStore = function()
+				return {getBlockAt = function(_, blockPos)
+					for _, container in {workspace:FindFirstChild('BlocksContainer'), workspace:FindFirstChild('PlayersBlocksContainer')} do
+						local part = container and container:FindFirstChild(tostring(blockPos), true)
+						if part and part:IsA('BasePart') then return part end
+					end
+				end}
+			end,
+			isBlockBreakable = function() return true end
+		},
+		BlockBreaker = {hitBlock = function() end, updateHealthbar = function() end, breakEffect = {playBreak = function() end, playHit = function() end}, healthbarMaid = {DoCleaning = function() end}},
+		BlockBreakController = {blockBreaker = {setCooldown = function() end}},
+		Store = {getState = function() return {Game = {matchState = store.matchState, queueType = 'bedfight'}, Bedwars = {kit = lplr:GetAttribute('Kit') or 'none'}, Inventory = {observedInventory = store.inventory}} end, changed = {connect = function() return {disconnect = function() end} end}, dispatch = function(_, action) store.inventory.hotbarSlot = action.slot end},
+		ClientDamageBlock = {Get = function() return {CallServerAsync = function() return {andThen = function(_, cb) cb(false) end} end} end},
+		RuntimeLib = {await = function(value) return value end},
+		ZapNetworking = setmetatable({}, {__index = function() return {On = function() return {Disconnect = function() end} end} end})
+	}, {__index = function(self, index)
+		rawset(self, index, noopController)
+		return noopController
+	end})
+	remotes.EquipItem = 'EquipItem'
+	remotes.AttackEntity = 'AttackEntity'
+	remotes.FireProjectile = 'FireProjectile'
+	bedwars.placeBlock = function() return false end
+	bedwars.breakBlock = function() return false end
+	getgenv().bedwars = bedwars
+	getgenv().remotes = remotes
+	refreshInventory()
+	local inv = lplr:FindFirstChild('Inventory')
+	if inv then
+		vape:Clean(inv.ChildAdded:Connect(refreshInventory))
+		vape:Clean(inv.ChildRemoved:Connect(refreshInventory))
+	end
+	notif('BedFight', 'Loaded native BedFight remotes and modules.', 5, 'info')
+	return true
+end
+
 run(function()
+	if setupNativeBedFight() then
+		return
+	end
+
 	local KnitInit, Knit
 	repeat
 		KnitInit, Knit = pcall(function()
@@ -1080,7 +1359,7 @@ run(function()
 	bedwars.BlockController.isBlockBreakable = function(self, breakTable, plr)
 		local obj = bedwars.BlockController:getStore():getBlockAt(breakTable.blockPosition)
 
-		if obj and obj.Name == 'bed' then
+		if obj and isBedBlock(obj) then
 			for _, plr in playersService:GetPlayers() do
 				if obj:GetAttribute('Team'..(plr:GetAttribute('Team') or 0)..'NoBreak') and not select(2, whitelist:get(plr)) then
 					return false
@@ -1101,7 +1380,8 @@ run(function()
 
 	getBlockHits = function(block, blockpos)
 		if not block then return 0 end
-		local breaktype = bedwars.ItemMeta[block.Name].block.breakType
+		local blockMeta = bedwars.ItemMeta[block.Name]
+		local breaktype = blockMeta and blockMeta.block and blockMeta.block.breakType or (isBedBlock(block) and 'wood' or 'stone')
 		local tool = store.tools[breaktype]
 		tool = tool and bedwars.ItemMeta[tool.itemType].breakBlock[breaktype] or 2
 		return getBlockHealth(block, bedwars.BlockController:getBlockPosition(blockpos)) / tool
@@ -1199,7 +1479,8 @@ run(function()
 			if not dblock then return end
 
 			if (workspace:GetServerTimeNow() - bedwars.SwordController.lastAttack) > 0.4 then
-				local breaktype = dblock.Name == 'gumdrop_bounce_pad' and 'stone' or bedwars.ItemMeta[dblock.Name].block.breakType
+				local blockMeta = bedwars.ItemMeta[dblock.Name]
+				local breaktype = dblock.Name == 'gumdrop_bounce_pad' and 'stone' or blockMeta and blockMeta.block and blockMeta.block.breakType or (isBedBlock(dblock) and 'wood' or 'stone')
 				local tool = store.tools[breaktype]
 				if tool then
 					if visualise then
@@ -2584,7 +2865,7 @@ run(function()
     LegitAura = SilentAura:CreateToggle({Name = 'Swing only'})
     SilentAim = SilentAura:CreateToggle({
         Name = 'Silent Aim',
-        Tooltip = 'Uses catvape\'s aiming technology to silently aim while looking legit',
+        Tooltip = 'Silently aims while preserving a legitimate-looking camera angle',
         Default = true,
         Function = function(callback)
             Area.Object.Visible = not callback
@@ -3527,7 +3808,7 @@ run(function()
     				pcall(function()
     					local block, info = nil, self.clientManager:getBlockSelector():getMouseInfo(1, {ray = params})
     					block = info and info.target and info.target.blockInstance or nil
-    					if block and (not Blacklist.Enabled or not find(newlist, block.Name)) and (not BedCheck.Enabled or block.Name ~= 'bed') then
+                    if block and (not Blacklist.Enabled or not find(newlist, block.Name)) and (not BedCheck.Enabled or not isBedBlock(block) or not isOwnBed(block)) then
     						bedwars.BlockBreakController.blockBreaker:setCooldown(Time.Value)
     					end
     				end)
@@ -3558,7 +3839,7 @@ run(function()
     })
     BedCheck = FastBreak:CreateToggle({
     	Name = 'Bed Check',
-    	Tooltip = "Doesn't increase speed if ur breaking a bed",
+        Tooltip = "Doesn't increase speed when breaking your own bed.",
     })
     Blacklist = FastBreak:CreateToggle({
     	Name = 'Use blacklist',
@@ -6257,24 +6538,26 @@ run(function()
     	Name = 'Bed ESP',
     	Function = function(callback)
     		if callback then
-    			BedESP:Clean(collectionService:GetInstanceAddedSignal('bed'):Connect(function(bed)
-    				task.delay(0.2, Added, bed)
-    			end))
-    			BedESP:Clean(collectionService:GetInstanceRemovedSignal('bed'):Connect(function(bed)
-    				if Reference[bed] then
-    					Reference[bed]:Destroy()
-    					Reference[bed] = nil
-    				end
-    			end))
-    			for _, bed in collectionService:GetTagged('bed') do
-    				Added(bed)
-    			end
+                for _, tag in bedFightProfile.BedTags do
+                    BedESP:Clean(collectionService:GetInstanceAddedSignal(tag):Connect(function(bed)
+                        task.delay(0.2, Added, bed)
+                    end))
+                    BedESP:Clean(collectionService:GetInstanceRemovedSignal(tag):Connect(function(bed)
+                        if Reference[bed] then
+                            Reference[bed]:Destroy()
+                            Reference[bed] = nil
+                        end
+                    end))
+                    for _, bed in collectionService:GetTagged(tag) do
+                        Added(bed)
+                    end
+                end
     		else
     			Folder:ClearAllChildren()
     			table.clear(Reference)
     		end
     	end,
-    	Tooltip = 'Render Beds through walls'
+        Tooltip = 'Renders BedFight beds through walls'
     })
 end)
 
@@ -9447,7 +9730,7 @@ run(function()
                 until not AutoCounter.Enabled
             end
         end,
-        Tooltip = 'Automatically places tnt on opponent\'s tnt'
+        Tooltip = 'Automatically places TNT on an opponent\'s TNT'
     })
     
     Mode = AutoCounter:CreateDropdown({
@@ -10918,7 +11201,7 @@ run(function()
                 Label = nil
             end
         end,
-        Tooltip = 'Helps you make bridges/scaffold walk.'
+        Tooltip = 'Helps you build bridges and scaffold walk.'
     })
     Expand = Scaffold:CreateSlider({
         Name = 'Expand',
