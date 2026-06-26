@@ -10561,12 +10561,18 @@ run(function()
 end)
 
 run(function()
+    local KrystalDisabler
     local oldUpdateMomentum
     local momentumRemote
+    local patchedSignals = setmetatable({}, { __mode = 'k' })
     local targetMomentum = 9e9
 
+    local function getController()
+        return bedwars and bedwars.GlacialSkaterController
+    end
+
     local function setKrystalMomentum(controller)
-        controller = controller or bedwars.GlacialSkaterController
+        controller = controller or getController()
         if not controller then return end
         controller.momentum = targetMomentum
         controller.lastMomentumReport = targetMomentum
@@ -10576,34 +10582,62 @@ run(function()
             end)
         end
     end
-    
-    vape.Categories.Kits:CreateModule({
+
+    local function patchMovementSignal(signal)
+        if not signal or not getconnections or not hookfunction then return end
+        for _, connection in getconnections(signal) do
+            local func = connection and connection.Function
+            if func and not patchedSignals[func] then
+                patchedSignals[func] = true
+                pcall(hookfunction, func, function() end)
+            end
+        end
+    end
+
+    local function patchCharacter(character)
+        local root = character and character.RootPart
+        if not root then return end
+        patchMovementSignal(root:GetPropertyChangedSignal('CFrame'))
+        patchMovementSignal(root:GetPropertyChangedSignal('Velocity'))
+        patchMovementSignal(root:GetPropertyChangedSignal('AssemblyLinearVelocity'))
+    end
+
+    KrystalDisabler = vape.Categories.Kits:CreateModule({
         Name = 'Krystal Disabler',
         Function = function(callback)
-            local controller = bedwars.GlacialSkaterController
-            if not controller or type(controller.updateMomentum) ~= 'function' then
-                notif('Krystal Disabler', 'Krystal controller is unavailable.', 5, 'warning')
-                return
-            end
-
+            local controller = getController()
             if callback then
-                if oldUpdateMomentum then return end
+                if not controller or type(controller.updateMomentum) ~= 'function' then
+                    notif('Krystal Disabler', 'Krystal controller is unavailable.', 5, 'warning')
+                    KrystalDisabler:Toggle()
+                    return
+                end
+
                 momentumRemote = bedwars.Client and bedwars.Client:Get('MomentumUpdate')
-                oldUpdateMomentum = controller.updateMomentum
-                controller.updateMomentum = function(self, ...)
-                    local result = oldUpdateMomentum(self, ...)
-                    setKrystalMomentum(self)
-                    return result
+                if not oldUpdateMomentum then
+                    oldUpdateMomentum = controller.updateMomentum
+                    controller.updateMomentum = function(self, ...)
+                        local result = oldUpdateMomentum(self, ...)
+                        setKrystalMomentum(self)
+                        return result
+                    end
+                end
+
+                KrystalDisabler:Clean(entitylib.Events.LocalAdded:Connect(patchCharacter))
+                if entitylib.isAlive then
+                    patchCharacter(entitylib.character)
                 end
                 setKrystalMomentum(controller)
                 pcall(controller.updateMomentum, controller)
-            elseif oldUpdateMomentum then
-                controller.updateMomentum = oldUpdateMomentum
+            else
+                if controller and oldUpdateMomentum then
+                    controller.updateMomentum = oldUpdateMomentum
+                end
                 oldUpdateMomentum = nil
                 momentumRemote = nil
             end
         end,
-        Tooltip = 'Keeps Krystal momentum active while safely restoring the original controller when disabled.'
+        Tooltip = 'Reduces Krystal lagbacks by keeping momentum reported and suppressing local movement correction listeners.'
     })
 end)
 
