@@ -5500,6 +5500,11 @@ function mainapi:CreateLegit()
 
 		function moduleapi:Toggle()
 			moduleapi.Enabled = not moduleapi.Enabled
+			if moduleapi.HudOverlayButton and moduleapi.HudOverlayButton.Enabled ~= moduleapi.Enabled and not moduleapi.SyncingHudOverlay then
+				moduleapi.SyncingHudOverlay = true
+				moduleapi.HudOverlayButton:Toggle()
+				moduleapi.SyncingHudOverlay = nil
+			end
 			if moduleapi.Children then
 				moduleapi.Children.Visible = moduleapi.Enabled
 			end
@@ -5518,6 +5523,22 @@ function mainapi:CreateLegit()
 				table.clear(moduleapi.Connections)
 			end
 			task.spawn(modulesettings.Function, moduleapi.Enabled)
+		end
+
+		if moduleapi.ApiCategory == 'Hud' and moduleapi.Children then
+			moduleapi.HudOverlayButton = mainapi.Overlays:CreateToggle({
+				Name = modulesettings.Name,
+				Icon = modulesettings.Icon or getcustomasset('aethercorev2/assets/new/overlaystab.png'),
+				Size = modulesettings.IconSize or UDim2.fromOffset(14, 12),
+				Position = modulesettings.IconPosition or UDim2.fromOffset(12, 13),
+				Function = function(callback)
+					if moduleapi.Enabled ~= callback and not moduleapi.SyncingHudOverlay then
+						moduleapi.SyncingHudOverlay = true
+						moduleapi:Toggle()
+						moduleapi.SyncingHudOverlay = nil
+					end
+				end
+			})
 		end
 
 		back.MouseEnter:Connect(function()
