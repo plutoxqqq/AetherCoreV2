@@ -3962,7 +3962,11 @@ run(function()
     local LegitAura
     local Particles, Boxes, Rings = {}, {}, {}
     local anims, AnimDelay, AnimTween, armC0 = vape.Libraries.auraanims, tick()
+    local AttackRemote = {FireServer = function(self, ...) end}
     local projectileRemote = {InvokeServer = function(self, ...) end}
+    task.spawn(function()
+        AttackRemote = bedwars.Client:Get(remotes.AttackEntity).instance
+    end)
     task.spawn(function()
     	projectileRemote = bedwars.Client:Get(remotes.FireProjectile).instance
     end)
@@ -4169,7 +4173,7 @@ run(function()
                                         store.attackReachUpdate = tick() + 1
                                         swingCooldown = tick()
                                         
-                                        bedwars.Client:Get(remotes.AttackEntity):SendToServer({
+                                        AttackRemote:FireServer({
                                             weapon = sword.tool,
                                             chargedAttack = {chargeRatio = 0},
                                             entityInstance = v.Character,
@@ -4344,7 +4348,7 @@ run(function()
     	DefaultMin = 0,
     	DefaultMax = 0.1,
     	Suffix = 'seconds',
-    	Tooltip = 'Continues to swing ur sword'
+		Tooltip = 'Continues to swing your sword'
     })
     local methods = {'Damage', 'Distance'}
     for i in sortmethods do
