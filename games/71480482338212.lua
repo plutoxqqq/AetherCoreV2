@@ -933,10 +933,13 @@ do
 
     revertitem = function(plr)
         if not switchedTo then return end
-        if previousEquipped then
+
+        local currentName = getClientEquipped()
+        if previousEquipped and (not currentName or namesMatch(currentName, switchedTo)) then
             sendRemote(bedfight.remotes.EquipTool, previousEquipped.name)
-            previousEquipped = nil
         end
+
+        previousEquipped = nil
         switchedTo = nil
     end
 
@@ -1043,6 +1046,8 @@ runcode(function()
     local currentController = nil
     local shieldActive = false
     local shieldConn = nil
+    local lastAttack = 0
+    local attackTaskRunning = false
 
     local SwordController = bedfight.modules.SwordController
     local origGetHitWithBox = nil
@@ -1061,6 +1066,76 @@ runcode(function()
             currentController:Stop(true)
             currentController = nil
         end
+    end
+
+    local function getAttackDelay(swordData)
+        local attackSpeed = tonumber(swordData and swordData.attackSpeed) or 0.35
+        if attackSpeed <= 0 then return 0.35 end
+        return math.max(0.12, attackSpeed)
+    end
+
+    local function suppressUnwantedJump(humanoid, wasJumping, duration)
+        if wasJumping or not humanoid then return end
+
+        local stopAt = tick() + (duration or 0.18)
+        task.spawn(function()
+            while tick() < stopAt and humanoid.Parent do
+                humanoid.Jump = false
+                if humanoid:GetState() == Enum.HumanoidStateType.Jumping then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                end
+                RunService.Heartbeat:Wait()
+            end
+        end)
+    end
+
+    local function runAttackSequence(swordName, swordData, targetEntry, targetCharacter, humanoid)
+        attackTaskRunning = true
+
+        local ok = pcall(function()
+            local hitbox = getEntityHitbox(targetEntry, targetCharacter)
+            if not hitbox or not hitbox.Parent then return end
+
+            local wasJumping = humanoid and humanoid.Jump
+            switchitem(swordName)
+            RunService.Heartbeat:Wait()
+
+            hitbox = getEntityHitbox(targetEntry, targetCharacter)
+            if not hitbox or not hitbox.Parent then
+                revertitem()
+                return
+            end
+
+            local ctrl = hookcont(swordName)
+            if not ctrl then
+                revertitem()
+                return
+            end
+
+            ctrl.CanAttack = true
+            local restoreGetHitWithBox = SwordController.GetHitWithBox
+            SwordController.GetHitWithBox = function()
+                return hitbox
+            end
+
+            pcall(function()
+                ctrl:Activate()
+            end)
+
+            SwordController.GetHitWithBox = restoreGetHitWithBox
+            suppressUnwantedJump(humanoid, wasJumping, 0.18)
+            task.wait(0.05)
+            revertitem()
+        end)
+
+        if not ok then
+            if origGetHitWithBox then
+                SwordController.GetHitWithBox = origGetHitWithBox
+            end
+            revertitem()
+        end
+
+        attackTaskRunning = false
     end
 
     -- changing this WILL BREAK aura okay?
@@ -1170,16 +1245,11 @@ runcode(function()
 
                     currentTarget = targetEntry
 
-                    switchitem(swordtype)
-                    task.wait(0.03)
-                    local ctrl = hookcont(swordtype)
-                    if not ctrl then return end
-                    ctrl.CanAttack = true
-                    SwordController.GetHitWithBox = function()
-                        return buildSwordHitData(currentTarget)
-                    end
-                    ctrl:Activate()
-                    SwordController.GetHitWithBox = origGetHitWithBox
+                    local now = tick()
+                    if attackTaskRunning or now - lastAttack < getAttackDelay(swordData) then return end
+                    lastAttack = now
+
+                    task.spawn(runAttackSequence, swordtype, swordData, currentTarget, target, myHum)
                     --if projFireAt then task.spawn(projFireAt, root, target) end
                 end)
             else
@@ -1187,6 +1257,7 @@ runcode(function()
                 funcs:offExit("KA_CharConn")
                 shieldActive = false
                 currentTarget = nil
+                attackTaskRunning = false
                 data.Attacking = false
                 data.attackingEntity = nil
                 stopController()
