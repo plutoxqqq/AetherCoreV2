@@ -64,7 +64,7 @@ end
 run(function()
     local Sprint
     local old
-    
+
     Sprint = vape.Categories.Combat:CreateModule({
         Name = 'Sprint',
         Function = function(callback)
@@ -94,11 +94,11 @@ run(function()
     local AutoQueue
     local QueueType
     local Leave
-    
+
     local Categories = {}
-    
+
     AutoQueue = vape.Categories.Utility:CreateModule({
-        Name = 'Auto Queue',
+        Name = 'AutoQueue',
         Function = function(call)
             if call then
                 repeat
@@ -117,13 +117,13 @@ run(function()
                     end
                     task.wait(0.1)
                 until not AutoQueue.Enabled
-    
+
             else
                 replicatedStorage['events-@easy-games/lobby:shared/event/lobby-events@getEvents.Events'].leaveQueue:FireServer()
             end
         end
     })
-    
+
     local list = {}
     for i,v in bedwars.QueueMeta do
         if not v.disabled then
@@ -148,7 +148,7 @@ end)
 
 run(function()
     local AutoGamble
-    
+
     AutoGamble = vape.Categories.Minigames:CreateModule({
         Name = 'AutoGamble',
         Function = function(callback)
@@ -159,7 +159,7 @@ run(function()
                         notif('AutoGamble', 'Won '..tab.displayName, 5)
                     end
                 end))
-    
+
                 repeat
                     if not bedwars.CrateAltarController.activeCrates[1] then
                         for _, v in bedwars.Store:getState().Consumable.inventory do
@@ -185,9 +185,9 @@ end)
 
 run(function()
     local Claim = bedwars.Client:Get('ClaimAchievementRewards')
-    
+
     vape.Categories.Minigames:CreateModule({
-        Name = 'Infinite Rewards',
+        Name = 'InfiniteRewards',
         Function = function(callback)
             if callback then
                 for i in bedwars.AchievementId do

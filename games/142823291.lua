@@ -97,7 +97,7 @@ run(function()
     local Range
     local HitChance
     local HeadChance
-    
+
     local old
     local method = function(origin, direction, params)
         if debug.info(4, 's'):find('GunClient') then
@@ -116,9 +116,9 @@ run(function()
         end
         return old(origin, direction, params)
     end
-    
+
     SilentAim = vape.Categories.Combat:CreateModule({
-        Name = 'Silent Aim',
+        Name = 'SilentAim',
         Function = function(callback)
             if callback then
                 old = hookmetamethod(game, '__namecall', newcclosure(function(...)
@@ -132,34 +132,34 @@ run(function()
             end
         end
     })
-    
+
     Targets = SilentAim:CreateTargets({Players = true})
     Range = SilentAim:CreateSlider({
-    	Name = 'Range',
-    	Min = 1,
-    	Max = 1000,
-    	Default = 150,
-    	Function = function(val)
-    		if CircleObject then
-    			CircleObject.Radius = val
-    		end
-    	end,
-    	Suffix = function(val)
-    		return val == 1 and 'stud' or 'studs'
-    	end,
+	Name = 'Range',
+	Min = 1,
+	Max = 1000,
+	Default = 150,
+	Function = function(val)
+		if CircleObject then
+			CircleObject.Radius = val
+		end
+	end,
+	Suffix = function(val)
+		return val == 1 and 'stud' or 'studs'
+	end,
     })
     HitChance = SilentAim:CreateSlider({
-    	Name = 'Hit Chance',
-    	Min = 0,
-    	Max = 100,
-    	Default = 85,
-    	Suffix = '%',
+	Name = 'Hit Chance',
+	Min = 0,
+	Max = 100,
+	Default = 85,
+	Suffix = '%',
     })
     HeadshotChance = SilentAim:CreateSlider({
-    	Name = 'Headshot Chance',
-    	Min = 0,
-    	Max = 100,
-    	Default = 65,
-    	Suffix = '%',
+	Name = 'Headshot Chance',
+	Min = 0,
+	Max = 100,
+	Default = 65,
+	Suffix = '%',
     })
 end)

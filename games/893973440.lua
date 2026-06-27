@@ -148,37 +148,37 @@ end
 
 run(function()
     run(function()
-    	local Killaura
-    	local Targets
-    	local CPS
-    	local SwingRange
-    	local FaceTarget
-    	local AttackRange
-    	local AngleSlider
-    	local Max
-    	local Mouse
-    	local Swing
-    	local BoxSwingColor
-    	local BoxAttackColor
-    	local ParticleTexture
-    	local ParticleColor1
-    	local ParticleColor2
-    	local ParticleSize
+	local Killaura
+	local Targets
+	local CPS
+	local SwingRange
+	local FaceTarget
+	local AttackRange
+	local AngleSlider
+	local Max
+	local Mouse
+	local Swing
+	local BoxSwingColor
+	local BoxAttackColor
+	local ParticleTexture
+	local ParticleColor1
+	local ParticleColor2
+	local ParticleSize
         local LegitAura
-    	local Rope
-    	local Particles, Boxes, AttackDelay, SwingDelay, ClickDelay = {}, {}, tick(), tick(), tick()
-        
-    	local function getAttackData()
-    		if Mouse.Enabled then
-    			if not inputService:IsMouseButtonPressed(0) then return false end
-    		end
-    		if LegitAura.Enabled then 
-    			if ClickDelay < tick() then return false end
-    		end
-    		
-    		return entitylib.isAlive and lplr.Character:FindFirstChild('Hammer') or nil
-    	end
-    
+	local Rope
+	local Particles, Boxes, AttackDelay, SwingDelay, ClickDelay = {}, {}, tick(), tick(), tick()
+
+	local function getAttackData()
+		if Mouse.Enabled then
+			if not inputService:IsMouseButtonPressed(0) then return false end
+		end
+		if LegitAura.Enabled then
+			if ClickDelay < tick() then return false end
+		end
+
+		return entitylib.isAlive and lplr.Character:FindFirstChild('Hammer') or nil
+	end
+
         Killaura = vape.Categories.Blatant:CreateModule({
             Name = 'Killaura',
             Function = function(callback)
@@ -193,22 +193,22 @@ run(function()
                             NPCs = Targets.NPCs.Enabled,
                             Limit = Max.Value
                         })
-    
+
                         if tool and #plrs > 0 then
                             local selfpos = entitylib.character.RootPart.Position
                             local localfacing = gameCamera.CFrame.LookVector * Vector3.new(1, 0, 1)
-    
+
                             for _, v in plrs do
                                 local delta = (v.RootPart.Position - selfpos)
                                 local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
                                 if angle > (math.rad(AngleSlider.Value) / 2) then continue end
                                 targetinfo.Targets[v] = tick() + 1
-                                
+
                                 if not Swing.Enabled and SwingDelay < tick() and not v.Player.TempPlayerStatsModule.Ragdoll.Value and tool then
                                     SwingDelay = tick() + 0.7
                                     entitylib.character.Humanoid.Animator:LoadAnimation(tool.AnimSwing):Play()
                                 end
-    
+
                                 if delta.Magnitude > AttackRange.Value then continue end
                                 if AttackDelay < tick() then
                                     AttackDelay = tick() + (0.1 / CPS.GetRandomValue())
@@ -218,9 +218,9 @@ run(function()
                                         lplr.Character:SetPrimaryPartCFrame(CFrame.new(lplr.Character.PrimaryPart.Position, Vector3.new(v.HumanoidRootPart.Position.X, lplr.Character.PrimaryPart.Position.Y, v.HumanoidRootPart.Position.Z)))
                                     end
                                 end
-    						end
+						end
                         end
-    
+
                         for i, v in Boxes do
                             v.Adornee = attacked[i] and attacked[i].Entity.RootPart or nil
                             if v.Adornee then
@@ -228,7 +228,7 @@ run(function()
                                 v.Transparency = 1 - attacked[i].Check.Opacity
                             end
                         end
-    
+
                         for i, v in Particles do
                             v.Position = attacked[i] and attacked[i].Entity.RootPart.Position or Vector3.new(9e9, 9e9, 9e9)
                             v.Parent = attacked[i] and gameCamera or nil
@@ -236,207 +236,207 @@ run(function()
                         task.wait()
                     until not Killaura.Enabled
                 else
-    				for _, v in Boxes do
-    					v.Adornee = nil
-    				end
-    				for _, v in Particles do
-    					v.Parent = nil
-    				end
+				for _, v in Boxes do
+					v.Adornee = nil
+				end
+				for _, v in Particles do
+					v.Parent = nil
+				end
                 end
             end,
             Tooltip = 'Attack players around you\nwithout aiming at them.',
         })
-    	Targets = Killaura:CreateTargets({Players = true})
-    	CPS = Killaura:CreateTwoSlider({
-    		Name = 'Attacks per Second',
-    		Min = 1,
-    		Max = 20,
-    		DefaultMin = 12,
-    		DefaultMax = 12
-    	})
-    	SwingRange = Killaura:CreateSlider({
-    		Name = 'Swing range',
-    		Min = 1,
-    		Max = 16,
-    		Default = 16,
-    		Suffix = function(val)
-    			return val == 1 and 'stud' or 'studs'
-    		end
-    	})
-    	AttackRange = Killaura:CreateSlider({
-    		Name = 'Attack range',
-    		Min = 1,
-    		Max = 16,
-    		Default = 16,
-    		Suffix = function(val)
-    			return val == 1 and 'stud' or 'studs'
-    		end
-    	})
-    	AngleSlider = Killaura:CreateSlider({
-    		Name = 'Max angle',
-    		Min = 1,
-    		Max = 360,
-    		Default = 360
-    	})
-    	Max = Killaura:CreateSlider({
-    		Name = 'Max targets',
-    		Min = 1,
-    		Max = 10,
-    		Default = 10
-    	})
-    	Rope = Killaura:CreateToggle({Name = 'Auto rope', Default = true})
-    	Mouse = Killaura:CreateToggle({Name = 'Require mouse down'})
-    	Swing = Killaura:CreateToggle({Name = 'No Swing'})
-    	Killaura:CreateToggle({
-    		Name = 'Show target',
-    		Function = function(callback)
-    			BoxSwingColor.Object.Visible = callback
-    			BoxAttackColor.Object.Visible = callback
-    			if callback then
-    				for i = 1, 10 do
-    					local box = Instance.new('BoxHandleAdornment')
-    					box.Adornee = nil
-    					box.AlwaysOnTop = true
-    					box.Size = Vector3.new(3, 5, 3)
-    					box.CFrame = CFrame.new(0, -0.5, 0)
-    					box.ZIndex = 0
-    					box.Parent = vape.gui
-    					Boxes[i] = box
-    				end
-    			else
-    				for _, v in Boxes do
-    					v:Destroy()
-    				end
-    				table.clear(Boxes)
-    			end
-    		end
-    	})
-    	BoxSwingColor = Killaura:CreateColorSlider({
-    		Name = 'Target Color',
-    		Darker = true,
-    		DefaultHue = 0.6,
-    		DefaultOpacity = 0.5,
-    		Visible = false
-    	})
-    	BoxAttackColor = Killaura:CreateColorSlider({
-    		Name = 'Attack Color',
-    		Darker = true,
-    		DefaultOpacity = 0.5,
-    		Visible = false
-    	})
-    	Killaura:CreateToggle({
-    		Name = 'Target particles',
-    		Function = function(callback)
-    			ParticleTexture.Object.Visible = callback
-    			ParticleColor1.Object.Visible = callback
-    			ParticleColor2.Object.Visible = callback
-    			ParticleSize.Object.Visible = callback
-    			if callback then
-    				for i = 1, 10 do
-    					local part = Instance.new('Part')
-    					part.Size = Vector3.new(2, 4, 2)
-    					part.Anchored = true
-    					part.CanCollide = false
-    					part.Transparency = 1
-    					part.CanQuery = false
-    					part.Parent = Killaura.Enabled and gameCamera or nil
-    					local particles = Instance.new('ParticleEmitter')
-    					particles.Brightness = 1.5
-    					particles.Size = NumberSequence.new(ParticleSize.Value)
-    					particles.Shape = Enum.ParticleEmitterShape.Sphere
-    					particles.Texture = ParticleTexture.Value
-    					particles.Transparency = NumberSequence.new(0)
-    					particles.Lifetime = NumberRange.new(0.4)
-    					particles.Speed = NumberRange.new(16)
-    					particles.Rate = 128
-    					particles.Drag = 16
-    					particles.ShapePartial = 1
-    					particles.Color = ColorSequence.new({
-    						ColorSequenceKeypoint.new(0, Color3.fromHSV(ParticleColor1.Hue, ParticleColor1.Sat, ParticleColor1.Value)),
-    						ColorSequenceKeypoint.new(1, Color3.fromHSV(ParticleColor2.Hue, ParticleColor2.Sat, ParticleColor2.Value))
-    					})
-    					particles.Parent = part
-    					Particles[i] = part
-    				end
-    			else
-    				for _, v in Particles do 
-    					v:Destroy() 
-    				end
-    				table.clear(Particles)
-    			end
-    		end
-    	})
-    	FaceTarget = Killaura:CreateToggle({Name = 'Face Target'})
-    	ParticleTexture = Killaura:CreateTextBox({
-    		Name = 'Texture',
-    		Default = 'rbxassetid://14736249347',
-    		Function = function()
-    			for _, v in Particles do
-    				v.ParticleEmitter.Texture = ParticleTexture.Value
-    			end
-    		end,
-    		Darker = true,
-    		Visible = false
-    	})
-    	ParticleColor1 = Killaura:CreateColorSlider({
-    		Name = 'Color Begin',
-    		Function = function(hue, sat, val)
-    			for _, v in Particles do
-    				v.ParticleEmitter.Color = ColorSequence.new({
-    					ColorSequenceKeypoint.new(0, Color3.fromHSV(hue, sat, val)),
-    					ColorSequenceKeypoint.new(1, Color3.fromHSV(ParticleColor2.Hue, ParticleColor2.Sat, ParticleColor2.Value))
-    				})
-    			end
-    		end,
-    		Darker = true,
-    		Visible = false
-    	})
-    	ParticleColor2 = Killaura:CreateColorSlider({
-    		Name = 'Color End',
-    		Function = function(hue, sat, val)
-    			for _, v in Particles do
-    				v.ParticleEmitter.Color = ColorSequence.new({
-    					ColorSequenceKeypoint.new(0, Color3.fromHSV(ParticleColor1.Hue, ParticleColor1.Sat, ParticleColor1.Value)),
-    					ColorSequenceKeypoint.new(1, Color3.fromHSV(hue, sat, val))
-    				})
-    			end
-    		end,
-    		Darker = true,
-    		Visible = false
-    	})
-    	ParticleSize = Killaura:CreateSlider({
-    		Name = 'Size',
-    		Min = 0,
-    		Max = 1,
-    		Default = 0.14,
-    		Decimal = 100,
-    		Function = function(val)
-    			for _, v in Particles do
-    				v.ParticleEmitter.Size = NumberSequence.new(val)
-    			end
-    		end,
-    		Darker = true,
-    		Visible = false
-    	})
-    	LegitAura = Killaura:CreateToggle({
-    		Name = 'Click only',
-    		Function = function()
-    			if Killaura.Enabled then 
-    				Killaura:Toggle()
-    				Killaura:Toggle()
-    			end
-    		end,
-    		Tooltip = 'Only attacks while clicking manually'
-    	})
+	Targets = Killaura:CreateTargets({Players = true})
+	CPS = Killaura:CreateTwoSlider({
+		Name = 'Attacks per Second',
+		Min = 1,
+		Max = 20,
+		DefaultMin = 12,
+		DefaultMax = 12
+	})
+	SwingRange = Killaura:CreateSlider({
+		Name = 'Swing range',
+		Min = 1,
+		Max = 16,
+		Default = 16,
+		Suffix = function(val)
+			return val == 1 and 'stud' or 'studs'
+		end
+	})
+	AttackRange = Killaura:CreateSlider({
+		Name = 'Attack range',
+		Min = 1,
+		Max = 16,
+		Default = 16,
+		Suffix = function(val)
+			return val == 1 and 'stud' or 'studs'
+		end
+	})
+	AngleSlider = Killaura:CreateSlider({
+		Name = 'Max angle',
+		Min = 1,
+		Max = 360,
+		Default = 360
+	})
+	Max = Killaura:CreateSlider({
+		Name = 'Max targets',
+		Min = 1,
+		Max = 10,
+		Default = 10
+	})
+	Rope = Killaura:CreateToggle({Name = 'Auto rope', Default = true})
+	Mouse = Killaura:CreateToggle({Name = 'Require mouse down'})
+	Swing = Killaura:CreateToggle({Name = 'No Swing'})
+	Killaura:CreateToggle({
+		Name = 'Show target',
+		Function = function(callback)
+			BoxSwingColor.Object.Visible = callback
+			BoxAttackColor.Object.Visible = callback
+			if callback then
+				for i = 1, 10 do
+					local box = Instance.new('BoxHandleAdornment')
+					box.Adornee = nil
+					box.AlwaysOnTop = true
+					box.Size = Vector3.new(3, 5, 3)
+					box.CFrame = CFrame.new(0, -0.5, 0)
+					box.ZIndex = 0
+					box.Parent = vape.gui
+					Boxes[i] = box
+				end
+			else
+				for _, v in Boxes do
+					v:Destroy()
+				end
+				table.clear(Boxes)
+			end
+		end
+	})
+	BoxSwingColor = Killaura:CreateColorSlider({
+		Name = 'Target Color',
+		Darker = true,
+		DefaultHue = 0.6,
+		DefaultOpacity = 0.5,
+		Visible = false
+	})
+	BoxAttackColor = Killaura:CreateColorSlider({
+		Name = 'Attack Color',
+		Darker = true,
+		DefaultOpacity = 0.5,
+		Visible = false
+	})
+	Killaura:CreateToggle({
+		Name = 'Target particles',
+		Function = function(callback)
+			ParticleTexture.Object.Visible = callback
+			ParticleColor1.Object.Visible = callback
+			ParticleColor2.Object.Visible = callback
+			ParticleSize.Object.Visible = callback
+			if callback then
+				for i = 1, 10 do
+					local part = Instance.new('Part')
+					part.Size = Vector3.new(2, 4, 2)
+					part.Anchored = true
+					part.CanCollide = false
+					part.Transparency = 1
+					part.CanQuery = false
+					part.Parent = Killaura.Enabled and gameCamera or nil
+					local particles = Instance.new('ParticleEmitter')
+					particles.Brightness = 1.5
+					particles.Size = NumberSequence.new(ParticleSize.Value)
+					particles.Shape = Enum.ParticleEmitterShape.Sphere
+					particles.Texture = ParticleTexture.Value
+					particles.Transparency = NumberSequence.new(0)
+					particles.Lifetime = NumberRange.new(0.4)
+					particles.Speed = NumberRange.new(16)
+					particles.Rate = 128
+					particles.Drag = 16
+					particles.ShapePartial = 1
+					particles.Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, Color3.fromHSV(ParticleColor1.Hue, ParticleColor1.Sat, ParticleColor1.Value)),
+						ColorSequenceKeypoint.new(1, Color3.fromHSV(ParticleColor2.Hue, ParticleColor2.Sat, ParticleColor2.Value))
+					})
+					particles.Parent = part
+					Particles[i] = part
+				end
+			else
+				for _, v in Particles do
+					v:Destroy()
+				end
+				table.clear(Particles)
+			end
+		end
+	})
+	FaceTarget = Killaura:CreateToggle({Name = 'Face Target'})
+	ParticleTexture = Killaura:CreateTextBox({
+		Name = 'Texture',
+		Default = 'rbxassetid://14736249347',
+		Function = function()
+			for _, v in Particles do
+				v.ParticleEmitter.Texture = ParticleTexture.Value
+			end
+		end,
+		Darker = true,
+		Visible = false
+	})
+	ParticleColor1 = Killaura:CreateColorSlider({
+		Name = 'Color Begin',
+		Function = function(hue, sat, val)
+			for _, v in Particles do
+				v.ParticleEmitter.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, Color3.fromHSV(hue, sat, val)),
+					ColorSequenceKeypoint.new(1, Color3.fromHSV(ParticleColor2.Hue, ParticleColor2.Sat, ParticleColor2.Value))
+				})
+			end
+		end,
+		Darker = true,
+		Visible = false
+	})
+	ParticleColor2 = Killaura:CreateColorSlider({
+		Name = 'Color End',
+		Function = function(hue, sat, val)
+			for _, v in Particles do
+				v.ParticleEmitter.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, Color3.fromHSV(ParticleColor1.Hue, ParticleColor1.Sat, ParticleColor1.Value)),
+					ColorSequenceKeypoint.new(1, Color3.fromHSV(hue, sat, val))
+				})
+			end
+		end,
+		Darker = true,
+		Visible = false
+	})
+	ParticleSize = Killaura:CreateSlider({
+		Name = 'Size',
+		Min = 0,
+		Max = 1,
+		Default = 0.14,
+		Decimal = 100,
+		Function = function(val)
+			for _, v in Particles do
+				v.ParticleEmitter.Size = NumberSequence.new(val)
+			end
+		end,
+		Darker = true,
+		Visible = false
+	})
+	LegitAura = Killaura:CreateToggle({
+		Name = 'Click only',
+		Function = function()
+			if Killaura.Enabled then
+				Killaura:Toggle()
+				Killaura:Toggle()
+			end
+		end,
+		Tooltip = 'Only attacks while clicking manually'
+	})
     end)
 end)
 
 run(function()
     local NoSlowdown
     local old
-    
+
     NoSlowdown = vape.Categories.Blatant:CreateModule({
-        Name = 'No Slow',
+        Name = 'NoSlow',
         Function = function(callback)
             if callback then
                 repeat
@@ -446,7 +446,7 @@ run(function()
                             v:Disable()
                         end
                     end
-    
+
                     task.wait(0.1)
                 until not NoSlowdown.Enabled
             else
@@ -463,7 +463,7 @@ end)
 run(function()
     local PhaseHammer
     local old
-    
+
     local function getEnv(mod)
         local renv = getsenv(mod)
         if not (renv and renv.OnClick) then
@@ -472,30 +472,30 @@ run(function()
                 task.wait()
             until renv and renv.OnClick or not PhaseHammer.Enabled
         end
-    
+
         return PhaseHammer.Enabled and renv
     end
-    
+
     local function addHammer(hammer)
         if hammer and hammer.Name == 'Hammer' then
             local mod = hammer:WaitForChild('LocalClubScript', 3)
             if mod and PhaseHammer.Enabled then
                 local env = getEnv(mod)
                 if not env then return end
-    
+
                 old = env.OnClick
                 debug.setconstant(debug.getproto(old, 1), 7, 0)
             end
         end
     end
-    
+
     local function addEntity(ent)
         PhaseHammer:Clean(ent.Character.ChildAdded:Connect(addHammer))
         addHammer(ent.Character:FindFirstChild('Hammer'))
     end
-    
+
     PhaseHammer = vape.Categories.Blatant:CreateModule({
-        Name = 'Phase Hammer',
+        Name = 'PhaseHammer',
         Function = function(callback)
             if callback then
                 PhaseHammer:Clean(entitylib.Events.LocalAdded:Connect(addEntity))
@@ -516,9 +516,9 @@ end)
 run(function()
     local RopeDisabler
     local Self
-    
+
     RopeDisabler = vape.Categories.Utility:CreateModule({
-        Name = 'Restrain Beast',
+        Name = 'RestrainBeast',
         Function = function(callback)
             if callback then
                 repeat
@@ -538,16 +538,16 @@ run(function()
         Tooltip = 'Force the beast to be unable to hook onto survivors'
     })
     Self = RopeDisabler:CreateToggle({
-        Name = 'Only you', 
-        Tooltip = 'Disable ropes for you only.', 
+        Name = 'Only you',
+        Tooltip = 'Disable ropes for you only.',
     })
 end)
 
 run(function()
     local SlowBeast
-    
+
     SlowBeast = vape.Categories.Blatant:CreateModule({
-        Name = 'Slow Beast',
+        Name = 'SlowBeast',
         Function = function(callback)
             if callback then
                 repeat
@@ -557,7 +557,7 @@ run(function()
                             rem:FireServer('Jumped')
                         end
                     end
-    
+
                     task.wait(0.1)
                 until not SlowBeast.Enabled
             end
@@ -568,9 +568,9 @@ end)
 
 run(function()
     local SpamBeast
-    
+
     SpamBeast = vape.Categories.Blatant:CreateModule({
-        Name = 'Spam Beast',
+        Name = 'SpamBeast',
         Function = function(callback)
             if callback then
                 repeat
@@ -580,7 +580,7 @@ run(function()
                             rem:FireServer('Input')
                         end
                     end
-    
+
                     task.wait(0.1)
                 until not SpamBeast.Enabled
             end
@@ -602,7 +602,7 @@ run(function()
     local Reference = {}
     local Folder = Instance.new('Folder')
     Folder.Parent = vape.gui
-    
+
     local function Added(computer)
         local screen = computer:FindFirstChild('Screen')
         local cham = Instance.new('Highlight')
@@ -614,46 +614,46 @@ run(function()
         cham.OutlineTransparency = OutlineTransparency.Value
         cham.Parent = Folder
         cham.Enabled = screen.Color ~= Color3.fromRGB(40, 127, 71)
-    
+
         ComputerESP:Clean(screen:GetPropertyChangedSignal('Color'):Connect(function()
             cham.Enabled = screen.Color ~= Color3.fromRGB(40, 127, 71)
         end))
-    
+
         Reference[computer] = cham
     end
-    
+
     local function Removed(computer)
         if Reference[computer] then
             if vape.ThreadFix then
                 setthreadidentity(8)
             end
-    
+
             Reference[computer]:Destroy()
             Reference[computer] = nil
         end
     end
-    
+
     local function MapAdded(map)
         local status = replicatedStorage.GameStatus
         if status.Value:find('LOADING') or status.Value:find('START') then
             repeat
                 task.wait()
             until not (status.Value:find('LOADING') or status.Value:find('START')) or not ComputerESP.Enabled
-    
+
             if not ComputerESP.Enabled then
                 return
             end
         end
-    
+
         for _, v in map:GetChildren() do
             if v.Name == 'ComputerTable' then
                 task.spawn(Added, v)
             end
         end
     end
-    
+
     ComputerESP = vape.Categories.Render:CreateModule({
-        Name = 'Computer ESP',
+        Name = 'ComputerESP',
         Function = function(callback)
             if callback then
                 ComputerESP:Clean(vapeEvents.MapAdded.Event:Connect(MapAdded))
@@ -662,7 +662,7 @@ run(function()
                         Removed(v)
                     end
                 end))
-    
+
                 if mapobj then
                     task.spawn(MapAdded, mapobj)
                 end
@@ -725,9 +725,9 @@ end)
 run(function()
     local AutoComputer
     local Mode
-    
+
     AutoComputer = vape.Categories.Utility:CreateModule({
-        Name = 'Auto Computer',
+        Name = 'AutoComputer',
         Function = function(callback)
             if callback then
                 repeat
@@ -745,7 +745,7 @@ run(function()
         end,
         Tooltip = 'Automatically complete the computer skill check.'
     })
-    
+
     Mode = AutoComputer:CreateDropdown({
         Name = 'Mode',
         List = {'Blatant', 'Legit'}
@@ -758,11 +758,11 @@ end)
 
 run(function()
     run(function()
-    	local Viewmodel
-    	local clone, old
-    
+	local Viewmodel
+	local clone, old
+
         local function Check(obj)
-            if obj.Name == 'Hammer' then 
+            if obj.Name == 'Hammer' then
                 old = obj
                 clone = old:WaitForChild('Handle'):Clone()
                 clone.CanCollide = false
@@ -774,48 +774,48 @@ run(function()
                 old.Handle.LocalTransparencyModifier = 1
             end
         end
-    	
-    	local function Added(char)
+
+	local function Added(char)
             local hammer = char:FindFirstChild('Hammer')
             if hammer then
                 Check(hammer)
             end
-    
-    		Viewmodel:Clean(char.ChildAdded:Connect(Check))
-    		Viewmodel:Clean(char.ChildRemoved:Connect(function(obj)
-    			if obj == old then 
-    				clone:Destroy()
-    				clone = nil
-    				old = nil
-    			end
-    		end))
-    	end
-    	
+
+		Viewmodel:Clean(char.ChildAdded:Connect(Check))
+		Viewmodel:Clean(char.ChildRemoved:Connect(function(obj)
+			if obj == old then
+				clone:Destroy()
+				clone = nil
+				old = nil
+			end
+		end))
+	end
+
 	Viewmodel = vape.Categories.Legit:CreateModule({
-    		Name = 'Viewmodel',
-    		Function = function(callback)
-    			if callback then 
-    				local motor = Instance.new('Motor6D')
-    				Viewmodel:Clean(motor)
-    				Viewmodel:Clean(runService.RenderStepped:Connect(function()
-    					if clone then 
-    						local dcf = ((CFrame.new(2.06, -2.44, -2.24) * CFrame.new(0.6, -0.2, -0.6)) * CFrame.Angles(math.rad(99), math.rad(2), math.rad(-4))) * motor.C0
-    						local offsetcf = (CFrame.new(0, -0.15, -1.56) * CFrame.Angles(math.rad(-90), math.rad(-90), 0))
-    						clone.CFrame = ((gameCamera.CFrame * dcf) * offsetcf)
-    					end
-    				end))
-    				Viewmodel:Clean(entitylib.Events.LocalAdded:Connect(Added))
-    				if entitylib.isAlive then 
-    					Added(entitylib.character) 
-    				end
-    			else
-    				if clone then 
-    					clone:Destroy() 
+		Name = 'Viewmodel',
+		Function = function(callback)
+			if callback then
+				local motor = Instance.new('Motor6D')
+				Viewmodel:Clean(motor)
+				Viewmodel:Clean(runService.RenderStepped:Connect(function()
+					if clone then
+						local dcf = ((CFrame.new(2.06, -2.44, -2.24) * CFrame.new(0.6, -0.2, -0.6)) * CFrame.Angles(math.rad(99), math.rad(2), math.rad(-4))) * motor.C0
+						local offsetcf = (CFrame.new(0, -0.15, -1.56) * CFrame.Angles(math.rad(-90), math.rad(-90), 0))
+						clone.CFrame = ((gameCamera.CFrame * dcf) * offsetcf)
+					end
+				end))
+				Viewmodel:Clean(entitylib.Events.LocalAdded:Connect(Added))
+				if entitylib.isAlive then
+					Added(entitylib.character)
+				end
+			else
+				if clone then
+					clone:Destroy()
                         clone = nil
-    				end
-    			end
-    		end,
-    		Tooltip = 'Replaces the default viewmodel'
-    	})
+				end
+			end
+		end,
+		Tooltip = 'Replaces the default viewmodel'
+	})
     end)
 end)
