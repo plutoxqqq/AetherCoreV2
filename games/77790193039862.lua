@@ -204,51 +204,51 @@ run(function()
     local AutoClicker
     local CPS
     local Thread
-    
+
     local function AutoClick()
-    	if Thread then
-    		task.cancel(Thread)
-    	end
-    
-    	Thread = task.delay(1 / CPS.GetRandomValue(), function()
-    		repeat
-    			task.spawn(arena.Client.startHit)
-    			task.wait(1 / CPS.GetRandomValue())
-    		until not AutoClicker.Enabled
-    	end)
+	if Thread then
+		task.cancel(Thread)
+	end
+
+	Thread = task.delay(1 / CPS.GetRandomValue(), function()
+		repeat
+			task.spawn(arena.Client.startHit)
+			task.wait(1 / CPS.GetRandomValue())
+		until not AutoClicker.Enabled
+	end)
     end
-    
+
     AutoClicker = vape.Categories.Combat:CreateModule({
-    	Name = 'Auto Clicker',
-    	Function = function(callback)
-    		if callback then
-    			AutoClicker:Clean(inputService.InputBegan:Connect(function(input)
-    				if input.UserInputType == Enum.UserInputType.MouseButton1 then
-    					AutoClick()
-    				end
-    			end))
-    
-    			AutoClicker:Clean(inputService.InputEnded:Connect(function(input)
-    				if input.UserInputType == Enum.UserInputType.MouseButton1 and Thread then
-    					task.cancel(Thread)
-    					Thread = nil
-    				end
-    			end))
-    		else
-    			if Thread then
-    				task.cancel(Thread)
-    				Thread = nil
-    			end
-    		end
-    	end,
-    	Tooltip = 'Hold attack button to automatically click'
+	Name = 'AutoClicker',
+	Function = function(callback)
+		if callback then
+			AutoClicker:Clean(inputService.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+					AutoClick()
+				end
+			end))
+
+			AutoClicker:Clean(inputService.InputEnded:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 and Thread then
+					task.cancel(Thread)
+					Thread = nil
+				end
+			end))
+		else
+			if Thread then
+				task.cancel(Thread)
+				Thread = nil
+			end
+		end
+	end,
+	Tooltip = 'Hold attack button to automatically click'
     })
     CPS = AutoClicker:CreateTwoSlider({
-    	Name = 'CPS',
-    	Min = 1,
-    	Max = 9,
-    	DefaultMin = 7,
-    	DefaultMax = 7
+	Name = 'CPS',
+	Min = 1,
+	Max = 9,
+	DefaultMin = 7,
+	DefaultMax = 7
     })
 end)
 
@@ -256,7 +256,7 @@ run(function()
     local Reach
     local Value
     local old
-    
+
     Reach = vape.Categories.Combat:CreateModule({
         Name = 'Reach',
         Function = function(callback)
@@ -291,18 +291,18 @@ end)
 
 run(function()
     local Sprint
-    
+
     Sprint = vape.Categories.Combat:CreateModule({
-    	Name = 'Sprint',
-    	Function = function(callback)
-    		if callback then
-    			repeat
-    				arena.PlayerState.Preferences.AutoSprint = true
-    				task.wait(0.016)
-    			until not Sprint.Enabled
-    		end
-    	end,
-    	Tooltip = 'Sets your sprinting to true.'
+	Name = 'Sprint',
+	Function = function(callback)
+		if callback then
+			repeat
+				arena.PlayerState.Preferences.AutoSprint = true
+				task.wait(0.016)
+			until not Sprint.Enabled
+		end
+	end,
+	Tooltip = 'Sets your sprinting to true.'
     })
 end)
 
@@ -314,33 +314,33 @@ run(function()
     local Targeting
     local connection
     local rand, old = Random.new()
-    
+
     local function velocityFunction(...)
         if rand:NextNumber(0, 100) > Chance.Value then return old(...) end
-    
+
         local data = ...
         local check = (not Targeting.Enabled) or entitylib.EntityPosition({
             Range = 50,
             Part = 'RootPart',
             Players = true
         })
-    
+
         if check and not data.position then
             local hort, vert = (Horizontal.Value / 100), (Vertical.Value / 100)
             if hort == 0 and vert == 0 then return end
             data.vel = Vector3.new(data.vel.X * hort, data.vel.Y * vert, data.vel.Z * hort)
         end
-    
+
         return old(...)
     end
-    
+
     Velocity = vape.Categories.Combat:CreateModule({
         Name = 'Velocity',
         Function = function(callback)
             if callback then
                 connection = getconnections(replicatedStorage.Remotes.ClientStateUpdate.OnClientEvent)[1]
                 if not connection then return end
-    
+
                 old = hookfunction(connection.Function, function(...)
                     return velocityFunction(...)
                 end)
@@ -383,31 +383,31 @@ end)
 
 run(function()
     vape.Categories.Blatant:CreateModule({
-    	Name = 'Auto Block',
-    	Function = function(callback)
-    		if callback then
-    			oldhit = hookfunction(arena.Client.startHit, function(...)
-    				if debug.getupvalue(oldhit, 6) then
-    					arena.Client.endBlockEvent:FireServer()
-    					debug.setupvalue(oldhit, 6, false)
-    
-    					local results = table.pack(oldhit(...))
-    					arena.Client.beginBlockEvent:FireServer()
-    					debug.setupvalue(oldhit, 6, true)
-    
-    					return unpack(results, 1, results.n)
-    				else
-    					return oldhit(...)
-    				end
-    			end)
-    		else
-    			if oldhit then
-    				hookfunction(arena.Client.startHit, oldhit)
-    				oldhit = nil
-    			end
-    		end
-    	end,
-    	Tooltip = 'Automatically unblock and reblock before hitting'
+	Name = 'AutoBlock',
+	Function = function(callback)
+		if callback then
+			oldhit = hookfunction(arena.Client.startHit, function(...)
+				if debug.getupvalue(oldhit, 6) then
+					arena.Client.endBlockEvent:FireServer()
+					debug.setupvalue(oldhit, 6, false)
+
+					local results = table.pack(oldhit(...))
+					arena.Client.beginBlockEvent:FireServer()
+					debug.setupvalue(oldhit, 6, true)
+
+					return unpack(results, 1, results.n)
+				else
+					return oldhit(...)
+				end
+			end)
+		else
+			if oldhit then
+				hookfunction(arena.Client.startHit, oldhit)
+				oldhit = nil
+			end
+		end
+	end,
+	Tooltip = 'Automatically unblock and reblock before hitting'
     })
 end)
 
@@ -416,67 +416,67 @@ run(function()
     local Value
     local VerticalValue
     local up, down = 0, 0
-    
+
     Fly = vape.Categories.Blatant:CreateModule({
-    	Name = 'Fly',
-    	Function = function(callback)
-    		if callback then
-    			Fly:Clean(runService.PreSimulation:Connect(function(dt)
-    				if entitylib.isAlive then
-    					local movedir = calculateMoveVector() * Value.Value
-    
-    					debug.setupvalue(arena.TickFunction, 6, Vector3.new(movedir.X, 1 + ((up + down) * VerticalValue.Value), movedir.Z))
-    				end
-    			end))
-    
-    			up, down = 0, 0
-    			for _, v in {'InputBegan', 'InputEnded'} do
-    				Fly:Clean(inputService[v]:Connect(function(input)
-    					if not inputService:GetFocusedTextBox() then
-    						local divided = Keys.Value:split('/')
-    						if input.KeyCode == Enum.KeyCode[divided[1]] then
-    							up = v == 'InputBegan' and 1 or 0
-    						elseif input.KeyCode == Enum.KeyCode[divided[2]] then
-    							down = v == 'InputBegan' and -1 or 0
-    						end
-    					end
-    				end))
-    			end
-    
-    			if inputService.TouchEnabled then
-    				pcall(function()
-    					local jumpButton = lplr.PlayerGui.TouchGui.TouchControlFrame.JumpButton
-    					Fly:Clean(jumpButton:GetPropertyChangedSignal('ImageRectOffset'):Connect(function()
-    						up = jumpButton.ImageRectOffset.X == 146 and 1 or 0
-    					end))
-    				end)
-    			end
-    		end
-    	end,
-    	Tooltip = 'Makes you go zoom.'
+	Name = 'Fly',
+	Function = function(callback)
+		if callback then
+			Fly:Clean(runService.PreSimulation:Connect(function(dt)
+				if entitylib.isAlive then
+					local movedir = calculateMoveVector() * Value.Value
+
+					debug.setupvalue(arena.TickFunction, 6, Vector3.new(movedir.X, 1 + ((up + down) * VerticalValue.Value), movedir.Z))
+				end
+			end))
+
+			up, down = 0, 0
+			for _, v in {'InputBegan', 'InputEnded'} do
+				Fly:Clean(inputService[v]:Connect(function(input)
+					if not inputService:GetFocusedTextBox() then
+						local divided = Keys.Value:split('/')
+						if input.KeyCode == Enum.KeyCode[divided[1]] then
+							up = v == 'InputBegan' and 1 or 0
+						elseif input.KeyCode == Enum.KeyCode[divided[2]] then
+							down = v == 'InputBegan' and -1 or 0
+						end
+					end
+				end))
+			end
+
+			if inputService.TouchEnabled then
+				pcall(function()
+					local jumpButton = lplr.PlayerGui.TouchGui.TouchControlFrame.JumpButton
+					Fly:Clean(jumpButton:GetPropertyChangedSignal('ImageRectOffset'):Connect(function()
+						up = jumpButton.ImageRectOffset.X == 146 and 1 or 0
+					end))
+				end)
+			end
+		end
+	end,
+	Tooltip = 'Makes you go zoom.'
     })
     Keys = Fly:CreateDropdown({
-    	Name = 'Keys',
-    	List = {'Space/LeftControl', 'Space/LeftShift', 'E/Q', 'Space/Q', 'ButtonA/ButtonL2'},
-    	Tooltip = 'The key combination for going up & down'
+	Name = 'Keys',
+	List = {'Space/LeftControl', 'Space/LeftShift', 'E/Q', 'Space/Q', 'ButtonA/ButtonL2'},
+	Tooltip = 'The key combination for going up & down'
     })
     Value = Fly:CreateSlider({
-    	Name = 'Speed',
-    	Min = 1,
-    	Max = 150,
-    	Default = 50,
-    	Suffix = function(val)
-    		return val == 1 and 'stud' or 'studs'
-    	end
+	Name = 'Speed',
+	Min = 1,
+	Max = 150,
+	Default = 50,
+	Suffix = function(val)
+		return val == 1 and 'stud' or 'studs'
+	end
     })
     VerticalValue = Fly:CreateSlider({
-    	Name = 'Vertical Speed',
-    	Min = 1,
-    	Max = 150,
-    	Default = 50,
-    	Suffix = function(val)
-    		return val == 1 and 'stud' or 'studs'
-    	end
+	Name = 'Vertical Speed',
+	Min = 1,
+	Max = 150,
+	Default = 50,
+	Suffix = function(val)
+		return val == 1 and 'stud' or 'studs'
+	end
     })
 end)
 
@@ -484,45 +484,45 @@ run(function()
     local HighJump
     local Value
     local AutoDisable
-    
+
     local function jump()
-    	local onground = debug.getupvalue(arena.MoveFunction, 4)
-    	if onground then
-    		local velocity = debug.getupvalue(arena.TickFunction, 6)
-    		debug.setupvalue(arena.TickFunction, 6, Vector3.new(velocity.X, Value.Value, velocity.Z))
-    	end
+	local onground = debug.getupvalue(arena.MoveFunction, 4)
+	if onground then
+		local velocity = debug.getupvalue(arena.TickFunction, 6)
+		debug.setupvalue(arena.TickFunction, 6, Vector3.new(velocity.X, Value.Value, velocity.Z))
+	end
     end
-    
+
     HighJump = vape.Categories.Blatant:CreateModule({
-    	Name = 'High Jump',
-    	Function = function(callback)
-    		if callback then
-    			if AutoDisable.Enabled then
-    				jump()
-    				HighJump:Toggle()
-    			else
-    				HighJump:Clean(runService.RenderStepped:Connect(function()
-    					if not inputService:GetFocusedTextBox() and inputService:IsKeyDown(Enum.KeyCode.Space) then
-    						jump()
-    					end
-    				end))
-    			end
-    		end
-    	end,
-    	Tooltip = 'Lets you jump higher'
+	Name = 'HighJump',
+	Function = function(callback)
+		if callback then
+			if AutoDisable.Enabled then
+				jump()
+				HighJump:Toggle()
+			else
+				HighJump:Clean(runService.RenderStepped:Connect(function()
+					if not inputService:GetFocusedTextBox() and inputService:IsKeyDown(Enum.KeyCode.Space) then
+						jump()
+					end
+				end))
+			end
+		end
+	end,
+	Tooltip = 'Lets you jump higher'
     })
     Value = HighJump:CreateSlider({
-    	Name = 'Velocity',
-    	Min = 1,
-    	Max = 150,
-    	Default = 50,
-    	Suffix = function(val)
-    		return val == 1 and 'stud' or 'studs'
-    	end
+	Name = 'Velocity',
+	Min = 1,
+	Max = 150,
+	Default = 50,
+	Suffix = function(val)
+		return val == 1 and 'stud' or 'studs'
+	end
     })
     AutoDisable = HighJump:CreateToggle({
-    	Name = 'Auto Disable',
-    	Default = true
+	Name = 'Auto Disable',
+	Default = true
     })
 end)
 
@@ -532,9 +532,9 @@ run(function()
     local TargetPart
     local Expand
     local modified = {}
-    
+
     HitBoxes = vape.Categories.Blatant:CreateModule({
-        Name = 'Hit Boxes',
+        Name = 'HitBoxes',
         Function = function(callback)
             if callback then
                 repeat
@@ -546,11 +546,11 @@ run(function()
                             if not modified[part] then
                                 modified[part] = part.Size
                             end
-    
+
                             part.Size = modified[part] + Vector3.new(Expand.Value, Expand.Value, Expand.Value)
                         end
                     end
-    
+
                     task.wait()
                 until not HitBoxes.Enabled
             else
@@ -590,270 +590,270 @@ run(function()
     local Overlay = OverlapParams.new()
     Overlay.FilterType = Enum.RaycastFilterType.Include
     local Particles, Boxes, AttackDelay = {}, {}, tick()
-    
+
     local function getAttackData()
-    	if Mouse.Enabled then
-    		if not inputService:IsMouseButtonPressed(0) then return false end
-    	end
-    
-    	return true, true
+	if Mouse.Enabled then
+		if not inputService:IsMouseButtonPressed(0) then return false end
+	end
+
+	return true, true
     end
-    
+
     Killaura = vape.Categories.Blatant:CreateModule({
-    	Name = 'Killaura',
-    	Function = function(callback)
-    		if callback then
-    			local customvec
-    			local proxy = newproxy(true)
-    			local blockfunc = oldhit or arena.Client.startHit
-    			getmetatable(proxy).__index = function(self, key)
-    				if key == 'CFrame' then
-    					return customvec or gameCamera.CFrame
-    				end
-    				return
-    			end
-    
-    			debug.setupvalue(arena.TickFunction, 13, proxy)
-    
-    			repeat
-    				customvec = nil
-    				local interest = getAttackData()
-    				local attacked = {}
-    
-    				if interest then
-    					local plrs = entitylib.AllPosition({
-    						Range = AttackRange.Value,
-    						Wallcheck = Targets.Walls.Enabled or nil,
-    						Part = 'RootPart',
-    						Players = Targets.Players.Enabled,
-    						NPCs = Targets.NPCs.Enabled,
-    						Limit = Max.Value
-    					})
-    
-    					if #plrs > 0 then
-    						local selfpos = entitylib.character.RootPart.Position
-    						local localfacing = gameCamera.CFrame.LookVector * Vector3.new(1, 0, 1)
-    						local reblock = false
-    
-    						for _, v in plrs do
-    							local delta = (v.RootPart.Position - selfpos)
-    							local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
-    							if angle > (math.rad(AngleSlider.Value) / 2) then continue end
-    
-    							table.insert(attacked, {
-    								Entity = v,
-    								Check = BoxAttackColor
-    							})
-    							targetinfo.Targets[v] = tick() + 1
-    
-    							if debug.getupvalue(blockfunc, 6) then
-    								arena.Client.endBlockEvent:FireServer()
-    								debug.setupvalue(blockfunc, 6, false)
-    								reblock = true
-    							end
-    
-    							if AttackDelay < tick() then
-    								arena.SwingFunction()
-    								AttackDelay = tick() + 0.11
-    
-    								if vape.ThreadFix then
-    									setthreadidentity(8)
-    								end
-    							end
-    
-    							local vec = CFrame.lookAt(selfpos, v.RootPart.Position)
-    							if angle > math.rad(65) then
-    								customvec = vec
-    							end
-    
-    							replicatedStorage.Remotes.HitRequest:FireServer(selfpos, vec.LookVector, v.Character, v.Player)
-    						end
-    
-    						if reblock then
-    							arena.Client.beginBlockEvent:FireServer()
-    							debug.setupvalue(blockfunc, 6, true)
-    						end
-    					end
-    				end
-    
-    				for i, v in Boxes do
-    					v.Adornee = attacked[i] and attacked[i].Entity.RootPart or nil
-    					if v.Adornee then
-    						v.Color3 = Color3.fromHSV(attacked[i].Check.Hue, attacked[i].Check.Sat, attacked[i].Check.Value)
-    						v.Transparency = 1 - attacked[i].Check.Opacity
-    					end
-    				end
-    
-    				for i, v in Particles do
-    					v.Position = attacked[i] and attacked[i].Entity.RootPart.Position or Vector3.new(9e9, 9e9, 9e9)
-    					v.Parent = attacked[i] and gameCamera or nil
-    				end
-    
-    				if Face.Enabled and attacked[1] then
-    					local vec = attacked[1].Entity.RootPart.Position * Vector3.new(1, 0, 1)
-    					entitylib.character.RootPart.CFrame = CFrame.lookAt(entitylib.character.RootPart.Position, Vector3.new(vec.X, entitylib.character.RootPart.Position.Y + 0.01, vec.Z))
-    				end
-    
-    				task.wait(#attacked > 0 and #attacked * 0.07 or 0.016)
-    			until not Killaura.Enabled
-    		else
-    			debug.setupvalue(arena.TickFunction, 13, gameCamera)
-    
-    			for _, v in Boxes do
-    				v.Adornee = nil
-    			end
-    
-    			for _, v in Particles do
-    				v.Parent = nil
-    			end
-    		end
-    	end,
-    	Tooltip = 'Attack players around you\nwithout aiming at them.'
+	Name = 'Killaura',
+	Function = function(callback)
+		if callback then
+			local customvec
+			local proxy = newproxy(true)
+			local blockfunc = oldhit or arena.Client.startHit
+			getmetatable(proxy).__index = function(self, key)
+				if key == 'CFrame' then
+					return customvec or gameCamera.CFrame
+				end
+				return
+			end
+
+			debug.setupvalue(arena.TickFunction, 13, proxy)
+
+			repeat
+				customvec = nil
+				local interest = getAttackData()
+				local attacked = {}
+
+				if interest then
+					local plrs = entitylib.AllPosition({
+						Range = AttackRange.Value,
+						Wallcheck = Targets.Walls.Enabled or nil,
+						Part = 'RootPart',
+						Players = Targets.Players.Enabled,
+						NPCs = Targets.NPCs.Enabled,
+						Limit = Max.Value
+					})
+
+					if #plrs > 0 then
+						local selfpos = entitylib.character.RootPart.Position
+						local localfacing = gameCamera.CFrame.LookVector * Vector3.new(1, 0, 1)
+						local reblock = false
+
+						for _, v in plrs do
+							local delta = (v.RootPart.Position - selfpos)
+							local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
+							if angle > (math.rad(AngleSlider.Value) / 2) then continue end
+
+							table.insert(attacked, {
+								Entity = v,
+								Check = BoxAttackColor
+							})
+							targetinfo.Targets[v] = tick() + 1
+
+							if debug.getupvalue(blockfunc, 6) then
+								arena.Client.endBlockEvent:FireServer()
+								debug.setupvalue(blockfunc, 6, false)
+								reblock = true
+							end
+
+							if AttackDelay < tick() then
+								arena.SwingFunction()
+								AttackDelay = tick() + 0.11
+
+								if vape.ThreadFix then
+									setthreadidentity(8)
+								end
+							end
+
+							local vec = CFrame.lookAt(selfpos, v.RootPart.Position)
+							if angle > math.rad(65) then
+								customvec = vec
+							end
+
+							replicatedStorage.Remotes.HitRequest:FireServer(selfpos, vec.LookVector, v.Character, v.Player)
+						end
+
+						if reblock then
+							arena.Client.beginBlockEvent:FireServer()
+							debug.setupvalue(blockfunc, 6, true)
+						end
+					end
+				end
+
+				for i, v in Boxes do
+					v.Adornee = attacked[i] and attacked[i].Entity.RootPart or nil
+					if v.Adornee then
+						v.Color3 = Color3.fromHSV(attacked[i].Check.Hue, attacked[i].Check.Sat, attacked[i].Check.Value)
+						v.Transparency = 1 - attacked[i].Check.Opacity
+					end
+				end
+
+				for i, v in Particles do
+					v.Position = attacked[i] and attacked[i].Entity.RootPart.Position or Vector3.new(9e9, 9e9, 9e9)
+					v.Parent = attacked[i] and gameCamera or nil
+				end
+
+				if Face.Enabled and attacked[1] then
+					local vec = attacked[1].Entity.RootPart.Position * Vector3.new(1, 0, 1)
+					entitylib.character.RootPart.CFrame = CFrame.lookAt(entitylib.character.RootPart.Position, Vector3.new(vec.X, entitylib.character.RootPart.Position.Y + 0.01, vec.Z))
+				end
+
+				task.wait(#attacked > 0 and #attacked * 0.07 or 0.016)
+			until not Killaura.Enabled
+		else
+			debug.setupvalue(arena.TickFunction, 13, gameCamera)
+
+			for _, v in Boxes do
+				v.Adornee = nil
+			end
+
+			for _, v in Particles do
+				v.Parent = nil
+			end
+		end
+	end,
+	Tooltip = 'Attack players around you\nwithout aiming at them.'
     })
     Targets = Killaura:CreateTargets({Players = true})
     AttackRange = Killaura:CreateSlider({
-    	Name = 'Attack range',
-    	Min = 1,
-    	Max = 16,
-    	Default = 16,
-    	Suffix = function(val)
-    		return val == 1 and 'stud' or 'studs'
-    	end
+	Name = 'Attack range',
+	Min = 1,
+	Max = 16,
+	Default = 16,
+	Suffix = function(val)
+		return val == 1 and 'stud' or 'studs'
+	end
     })
     AngleSlider = Killaura:CreateSlider({
-    	Name = 'Max angle',
-    	Min = 1,
-    	Max = 360,
-    	Default = 360
+	Name = 'Max angle',
+	Min = 1,
+	Max = 360,
+	Default = 360
     })
     Max = Killaura:CreateSlider({
-    	Name = 'Max targets',
-    	Min = 1,
-    	Max = 10,
-    	Default = 10
+	Name = 'Max targets',
+	Min = 1,
+	Max = 10,
+	Default = 10
     })
     Mouse = Killaura:CreateToggle({Name = 'Require mouse down'})
     Killaura:CreateToggle({
-    	Name = 'Show target',
-    	Function = function(callback)
-    		BoxAttackColor.Object.Visible = callback
-    		if callback then
-    			for i = 1, 10 do
-    				local box = Instance.new('BoxHandleAdornment')
-    				box.Adornee = nil
-    				box.AlwaysOnTop = true
-    				box.Size = Vector3.new(3, 7, 3)
-    				box.CFrame = CFrame.new(0, -0.5, 0)
-    				box.ZIndex = 0
-    				box.Parent = vape.gui
-    				Boxes[i] = box
-    			end
-    		else
-    			for _, v in Boxes do
-    				v:Destroy()
-    			end
-    			table.clear(Boxes)
-    		end
-    	end
+	Name = 'Show target',
+	Function = function(callback)
+		BoxAttackColor.Object.Visible = callback
+		if callback then
+			for i = 1, 10 do
+				local box = Instance.new('BoxHandleAdornment')
+				box.Adornee = nil
+				box.AlwaysOnTop = true
+				box.Size = Vector3.new(3, 7, 3)
+				box.CFrame = CFrame.new(0, -0.5, 0)
+				box.ZIndex = 0
+				box.Parent = vape.gui
+				Boxes[i] = box
+			end
+		else
+			for _, v in Boxes do
+				v:Destroy()
+			end
+			table.clear(Boxes)
+		end
+	end
     })
     BoxAttackColor = Killaura:CreateColorSlider({
-    	Name = 'Attack Color',
-    	Darker = true,
-    	DefaultOpacity = 0.5,
-    	Visible = false
+	Name = 'Attack Color',
+	Darker = true,
+	DefaultOpacity = 0.5,
+	Visible = false
     })
     Killaura:CreateToggle({
-    	Name = 'Target particles',
-    	Function = function(callback)
-    		ParticleTexture.Object.Visible = callback
-    		ParticleColor1.Object.Visible = callback
-    		ParticleColor2.Object.Visible = callback
-    		ParticleSize.Object.Visible = callback
-    		if callback then
-    			for i = 1, 10 do
-    				local part = Instance.new('Part')
-    				part.Size = Vector3.new(2, 4, 2)
-    				part.Anchored = true
-    				part.CanCollide = false
-    				part.Transparency = 1
-    				part.CanQuery = false
-    				part.Parent = Killaura.Enabled and gameCamera or nil
-    				local particles = Instance.new('ParticleEmitter')
-    				particles.Brightness = 1.5
-    				particles.Size = NumberSequence.new(ParticleSize.Value)
-    				particles.Shape = Enum.ParticleEmitterShape.Sphere
-    				particles.Texture = ParticleTexture.Value
-    				particles.Transparency = NumberSequence.new(0)
-    				particles.Lifetime = NumberRange.new(0.4)
-    				particles.Speed = NumberRange.new(16)
-    				particles.Rate = 128
-    				particles.Drag = 16
-    				particles.ShapePartial = 1
-    				particles.Color = ColorSequence.new({
-    					ColorSequenceKeypoint.new(0, Color3.fromHSV(ParticleColor1.Hue, ParticleColor1.Sat, ParticleColor1.Value)),
-    					ColorSequenceKeypoint.new(1, Color3.fromHSV(ParticleColor2.Hue, ParticleColor2.Sat, ParticleColor2.Value))
-    				})
-    				particles.Parent = part
-    				Particles[i] = part
-    			end
-    		else
-    			for _, v in Particles do
-    				v:Destroy()
-    			end
-    			table.clear(Particles)
-    		end
-    	end
+	Name = 'Target particles',
+	Function = function(callback)
+		ParticleTexture.Object.Visible = callback
+		ParticleColor1.Object.Visible = callback
+		ParticleColor2.Object.Visible = callback
+		ParticleSize.Object.Visible = callback
+		if callback then
+			for i = 1, 10 do
+				local part = Instance.new('Part')
+				part.Size = Vector3.new(2, 4, 2)
+				part.Anchored = true
+				part.CanCollide = false
+				part.Transparency = 1
+				part.CanQuery = false
+				part.Parent = Killaura.Enabled and gameCamera or nil
+				local particles = Instance.new('ParticleEmitter')
+				particles.Brightness = 1.5
+				particles.Size = NumberSequence.new(ParticleSize.Value)
+				particles.Shape = Enum.ParticleEmitterShape.Sphere
+				particles.Texture = ParticleTexture.Value
+				particles.Transparency = NumberSequence.new(0)
+				particles.Lifetime = NumberRange.new(0.4)
+				particles.Speed = NumberRange.new(16)
+				particles.Rate = 128
+				particles.Drag = 16
+				particles.ShapePartial = 1
+				particles.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, Color3.fromHSV(ParticleColor1.Hue, ParticleColor1.Sat, ParticleColor1.Value)),
+					ColorSequenceKeypoint.new(1, Color3.fromHSV(ParticleColor2.Hue, ParticleColor2.Sat, ParticleColor2.Value))
+				})
+				particles.Parent = part
+				Particles[i] = part
+			end
+		else
+			for _, v in Particles do
+				v:Destroy()
+			end
+			table.clear(Particles)
+		end
+	end
     })
     ParticleTexture = Killaura:CreateTextBox({
-    	Name = 'Texture',
-    	Default = 'rbxassetid://14736249347',
-    	Function = function()
-    		for _, v in Particles do
-    			v.ParticleEmitter.Texture = ParticleTexture.Value
-    		end
-    	end,
-    	Darker = true,
-    	Visible = false
+	Name = 'Texture',
+	Default = 'rbxassetid://14736249347',
+	Function = function()
+		for _, v in Particles do
+			v.ParticleEmitter.Texture = ParticleTexture.Value
+		end
+	end,
+	Darker = true,
+	Visible = false
     })
     ParticleColor1 = Killaura:CreateColorSlider({
-    	Name = 'Color Begin',
-    	Function = function(hue, sat, val)
-    		for _, v in Particles do
-    			v.ParticleEmitter.Color = ColorSequence.new({
-    				ColorSequenceKeypoint.new(0, Color3.fromHSV(hue, sat, val)),
-    				ColorSequenceKeypoint.new(1, Color3.fromHSV(ParticleColor2.Hue, ParticleColor2.Sat, ParticleColor2.Value))
-    			})
-    		end
-    	end,
-    	Darker = true,
-    	Visible = false
+	Name = 'Color Begin',
+	Function = function(hue, sat, val)
+		for _, v in Particles do
+			v.ParticleEmitter.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromHSV(hue, sat, val)),
+				ColorSequenceKeypoint.new(1, Color3.fromHSV(ParticleColor2.Hue, ParticleColor2.Sat, ParticleColor2.Value))
+			})
+		end
+	end,
+	Darker = true,
+	Visible = false
     })
     ParticleColor2 = Killaura:CreateColorSlider({
-    	Name = 'Color End',
-    	Function = function(hue, sat, val)
-    		for _, v in Particles do
-    			v.ParticleEmitter.Color = ColorSequence.new({
-    				ColorSequenceKeypoint.new(0, Color3.fromHSV(ParticleColor1.Hue, ParticleColor1.Sat, ParticleColor1.Value)),
-    				ColorSequenceKeypoint.new(1, Color3.fromHSV(hue, sat, val))
-    			})
-    		end
-    	end,
-    	Darker = true,
-    	Visible = false
+	Name = 'Color End',
+	Function = function(hue, sat, val)
+		for _, v in Particles do
+			v.ParticleEmitter.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromHSV(ParticleColor1.Hue, ParticleColor1.Sat, ParticleColor1.Value)),
+				ColorSequenceKeypoint.new(1, Color3.fromHSV(hue, sat, val))
+			})
+		end
+	end,
+	Darker = true,
+	Visible = false
     })
     ParticleSize = Killaura:CreateSlider({
-    	Name = 'Size',
-    	Min = 0,
-    	Max = 1,
-    	Default = 0.2,
-    	Decimal = 100,
-    	Function = function(val)
-    		for _, v in Particles do
-    			v.ParticleEmitter.Size = NumberSequence.new(val)
-    		end
-    	end,
-    	Darker = true,
-    	Visible = false
+	Name = 'Size',
+	Min = 0,
+	Max = 1,
+	Default = 0.2,
+	Decimal = 100,
+	Function = function(val)
+		for _, v in Particles do
+			v.ParticleEmitter.Size = NumberSequence.new(val)
+		end
+	end,
+	Darker = true,
+	Visible = false
     })
     Face = Killaura:CreateToggle({Name = 'Face target'})
 end)
@@ -861,55 +861,55 @@ end)
 run(function()
     local Value
     local AutoDisable
-    
+
     LongJump = vape.Categories.Blatant:CreateModule({
-    	Name = 'Long Jump',
-    	Function = function(callback)
-    		if callback then
-    			local exempt = tick() + 0.1
-    			LongJump:Clean(runService.PreSimulation:Connect(function(dt)
-    				if entitylib.isAlive then
-    					local movedir = calculateMoveVector() * Value.Value
-    					local onground = debug.getupvalue(arena.MoveFunction, 4)
-    
-    					if onground then
-    						if exempt < tick() and AutoDisable.Enabled then
-    							if LongJump.Enabled then
-    								LongJump:Toggle()
-    							end
-    						else
-    							debug.setupvalue(arena.TickFunction, 6, Vector3.new(movedir.X, 30, movedir.Z))
-    						end
-    					end
-    
-    					local velocity = debug.getupvalue(arena.TickFunction, 6)
-    					debug.setupvalue(arena.TickFunction, 6, Vector3.new(movedir.X, velocity.Y, movedir.Z))
-    				end
-    			end))
-    		end
-    	end,
-    	Tooltip = 'Lets you jump farther'
+	Name = 'LongJump',
+	Function = function(callback)
+		if callback then
+			local exempt = tick() + 0.1
+			LongJump:Clean(runService.PreSimulation:Connect(function(dt)
+				if entitylib.isAlive then
+					local movedir = calculateMoveVector() * Value.Value
+					local onground = debug.getupvalue(arena.MoveFunction, 4)
+
+					if onground then
+						if exempt < tick() and AutoDisable.Enabled then
+							if LongJump.Enabled then
+								LongJump:Toggle()
+							end
+						else
+							debug.setupvalue(arena.TickFunction, 6, Vector3.new(movedir.X, 30, movedir.Z))
+						end
+					end
+
+					local velocity = debug.getupvalue(arena.TickFunction, 6)
+					debug.setupvalue(arena.TickFunction, 6, Vector3.new(movedir.X, velocity.Y, movedir.Z))
+				end
+			end))
+		end
+	end,
+	Tooltip = 'Lets you jump farther'
     })
     Value = LongJump:CreateSlider({
-    	Name = 'Speed',
-    	Min = 1,
-    	Max = 150,
-    	Default = 50,
-    	Suffix = function(val)
-    		return val == 1 and 'stud' or 'studs'
-    	end
+	Name = 'Speed',
+	Min = 1,
+	Max = 150,
+	Default = 50,
+	Suffix = function(val)
+		return val == 1 and 'stud' or 'studs'
+	end
     })
     AutoDisable = LongJump:CreateToggle({
-    	Name = 'Auto Disable',
-    	Default = true
+	Name = 'Auto Disable',
+	Default = true
     })
 end)
 
 run(function()
     local old
-    
+
     vape.Categories.Blatant:CreateModule({
-        Name = 'No Slow',
+        Name = 'NoSlow',
         Function = function(callback)
             if callback then
                 old = debug.getupvalue(arena.MoveFunction, 17)
@@ -929,35 +929,35 @@ run(function()
     local Speed
     local Value
     local AutoJump
-    
+
     Speed = vape.Categories.Blatant:CreateModule({
-    	Name = 'Speed',
-    	Function = function(callback)
-    		if callback then
-    			Speed:Clean(runService.PreSimulation:Connect(function()
-    				if not Fly.Enabled and not LongJump.Enabled then
-    					local movedir = calculateMoveVector() * Value.Value
-    					local onground = debug.getupvalue(arena.MoveFunction, 4)
-    					local velocity = debug.getupvalue(arena.TickFunction, 6)
-    
-    					debug.setupvalue(arena.TickFunction, 6, Vector3.new(movedir.X, AutoJump.Enabled and onground and movedir.Magnitude > 0 and 20 or velocity.Y, movedir.Z))
-    				end
-    			end))
-    		end
-    	end,
-    	Tooltip = 'Increases your movement with various methods.'
+	Name = 'Speed',
+	Function = function(callback)
+		if callback then
+			Speed:Clean(runService.PreSimulation:Connect(function()
+				if not Fly.Enabled and not LongJump.Enabled then
+					local movedir = calculateMoveVector() * Value.Value
+					local onground = debug.getupvalue(arena.MoveFunction, 4)
+					local velocity = debug.getupvalue(arena.TickFunction, 6)
+
+					debug.setupvalue(arena.TickFunction, 6, Vector3.new(movedir.X, AutoJump.Enabled and onground and movedir.Magnitude > 0 and 20 or velocity.Y, movedir.Z))
+				end
+			end))
+		end
+	end,
+	Tooltip = 'Increases your movement with various methods.'
     })
     Value = Speed:CreateSlider({
-    	Name = 'Speed',
-    	Min = 1,
-    	Max = 90,
-    	Default = 30,
-    	Suffix = function(val)
-    		return val == 1 and 'stud' or 'studs'
-    	end
+	Name = 'Speed',
+	Min = 1,
+	Max = 90,
+	Default = 30,
+	Suffix = function(val)
+		return val == 1 and 'stud' or 'studs'
+	end
     })
     AutoJump = Speed:CreateToggle({
-    	Name = 'AutoJump'
+	Name = 'AutoJump'
     })
 end)
 
@@ -966,53 +966,53 @@ run(function()
     local rayCheck = RaycastParams.new()
     rayCheck.RespectCanCollide = true
     local SpiderShift, Active
-    
+
     Spider = vape.Categories.Blatant:CreateModule({
-    	Name = 'Spider',
-    	Function = function(callback)
-    		if callback then
-    			Spider:Clean(runService.PreSimulation:Connect(function(dt)
-    				if entitylib.isAlive then
-    					local root = entitylib.character.RootPart
-    					local chars = {gameCamera, lplr.Character}
-    					for _, v in entitylib.List do
-    						table.insert(chars, v.Character)
-    					end
-    
-    					SpiderShift = inputService:IsKeyDown(Enum.KeyCode.LeftShift)
-    					rayCheck.FilterDescendantsInstances = chars
-    					rayCheck.CollisionGroup = 'Hitbox'
-    
-    					local vec = calculateMoveVector() * 2.5
-    					local ray = workspace:Raycast(root.Position - Vector3.new(0, entitylib.character.HipHeight - 0.5, 0), vec, rayCheck)
-    					if Active and not ray then
-    						root.Velocity = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
-    					end
-    
-    					Active = ray
-    					if Active and ray.Normal.Y == 0 then
-    						if not Phase.Enabled or not SpiderShift then
-    							local velocity = debug.getupvalue(arena.TickFunction, 6)
-    							debug.setupvalue(arena.TickFunction, 6, Vector3.new(velocity.X, Value.Value, velocity.Z))
-    						end
-    					end
-    				end
-    			end))
-    		else
-    			SpiderShift = false
-    		end
-    	end,
-    	Tooltip = 'Lets you climb up walls. (Hold shift to use Phase over spider)'
+	Name = 'Spider',
+	Function = function(callback)
+		if callback then
+			Spider:Clean(runService.PreSimulation:Connect(function(dt)
+				if entitylib.isAlive then
+					local root = entitylib.character.RootPart
+					local chars = {gameCamera, lplr.Character}
+					for _, v in entitylib.List do
+						table.insert(chars, v.Character)
+					end
+
+					SpiderShift = inputService:IsKeyDown(Enum.KeyCode.LeftShift)
+					rayCheck.FilterDescendantsInstances = chars
+					rayCheck.CollisionGroup = 'Hitbox'
+
+					local vec = calculateMoveVector() * 2.5
+					local ray = workspace:Raycast(root.Position - Vector3.new(0, entitylib.character.HipHeight - 0.5, 0), vec, rayCheck)
+					if Active and not ray then
+						root.Velocity = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
+					end
+
+					Active = ray
+					if Active and ray.Normal.Y == 0 then
+						if not Phase.Enabled or not SpiderShift then
+							local velocity = debug.getupvalue(arena.TickFunction, 6)
+							debug.setupvalue(arena.TickFunction, 6, Vector3.new(velocity.X, Value.Value, velocity.Z))
+						end
+					end
+				end
+			end))
+		else
+			SpiderShift = false
+		end
+	end,
+	Tooltip = 'Lets you climb up walls. (Hold shift to use Phase over spider)'
     })
     Value = Spider:CreateSlider({
-    	Name = 'Speed',
-    	Min = 0,
-    	Max = 100,
-    	Default = 30,
-    	Darker = true,
-    	Suffix = function(val)
-    		return val == 1 and 'stud' or 'studs'
-    	end
+	Name = 'Speed',
+	Min = 0,
+	Max = 100,
+	Default = 30,
+	Darker = true,
+	Suffix = function(val)
+		return val == 1 and 'stud' or 'studs'
+	end
     })
 end)
 
@@ -1024,7 +1024,7 @@ run(function()
     local FastBreak
     local Value
     local old
-    
+
     FastBreak = vape.Categories.World:CreateModule({
         Name = 'FastBreak',
         Function = function(callback)
@@ -1056,7 +1056,7 @@ run(function()
     local FastPlace
     local Value
     local old
-    
+
     FastPlace = vape.Categories.World:CreateModule({
         Name = 'FastPlace',
         Function = function(callback)

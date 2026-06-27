@@ -1090,7 +1090,7 @@ runcode(function()
     local aimTeamCheck = {}
 
     AimAssist = GuiLibrary.Registry.combatPanel.API.CreateOptionsButton({
-        Name = "Aim Assist",
+        Name = "AimAssist",
         Function = function(callback)
             if callback then
                 RunLoops:BindToHeartbeat("AimAssist", function()
