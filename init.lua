@@ -27,7 +27,14 @@ local function getLoadingScreenParent()
 		local ok, result = pcall(function()
 			return cloneref(game:GetService('CoreGui'))
 		end)
-		if ok then parent = result end
+		if ok and result then parent = result end
+	end
+	if not parent then
+		local ok, result = pcall(function()
+			local player = cloneref(game:GetService('Players')).LocalPlayer
+			return player and player:FindFirstChildOfClass('PlayerGui') or nil
+		end)
+		if ok and result then parent = result end
 	end
 	return parent
 end
@@ -102,6 +109,19 @@ local function createLoadingScreen()
 	logo.ScaleType = Enum.ScaleType.Fit
 	logo.Image = isfile('aethercorev2/assets/new/loading.png') and (getcustomasset and getcustomasset('aethercorev2/assets/new/loading.png') or 'aethercorev2/assets/new/loading.png') or ''
 	logo.Parent = card
+
+	local fallbackLogo = Instance.new('TextLabel')
+	fallbackLogo.Name = 'FallbackLogo'
+	fallbackLogo.AnchorPoint = Vector2.new(0.5, 0)
+	fallbackLogo.Position = UDim2.new(0.5, 0, 0, 54)
+	fallbackLogo.Size = UDim2.fromOffset(300, 46)
+	fallbackLogo.BackgroundTransparency = 1
+	fallbackLogo.Font = Enum.Font.GothamBold
+	fallbackLogo.TextSize = 30
+	fallbackLogo.TextColor3 = Color3.fromRGB(90, 230, 210)
+	fallbackLogo.Text = 'AetherCore'
+	fallbackLogo.Visible = logo.Image == ''
+	fallbackLogo.Parent = card
 
 	local version = Instance.new('TextLabel')
 	version.Name = 'Version'
@@ -178,6 +198,9 @@ local function createLoadingScreen()
 		if version.Parent and isfile('aethercorev2/version.txt') then version.Text = 'Version '..readfile('aethercorev2/version.txt') end
 		if logo.Parent and logo.Image == '' and isfile('aethercorev2/assets/new/loading.png') then
 			logo.Image = getcustomasset and getcustomasset('aethercorev2/assets/new/loading.png') or 'aethercorev2/assets/new/loading.png'
+			if fallbackLogo.Parent then fallbackLogo.Visible = false end
+		elseif fallbackLogo.Parent then
+			fallbackLogo.Visible = logo.Image == ''
 		end
 	end
 	return screen
@@ -185,7 +208,15 @@ end
 
 local loadingScreen = createLoadingScreen()
 if not _G.AetherCoreSetLoadingStatus then
-	_G.AetherCoreSetLoadingStatus = function() end
+	local retrySetStatus
+	retrySetStatus = function(text, progress)
+		loadingScreen = createLoadingScreen()
+		local setter = _G.AetherCoreSetLoadingStatus
+		if setter and setter ~= retrySetStatus then
+			pcall(setter, text, progress)
+		end
+	end
+	_G.AetherCoreSetLoadingStatus = retrySetStatus
 end
 
 local function downloadFile(path, func)
