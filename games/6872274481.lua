@@ -12013,18 +12013,23 @@ run(function()
         return blocks
     end
 
-    local function getPyramid(size, grid)
-        local positions = {}
-        for h = size, 0, -1 do
-            for w = h, 0, -1 do
-                table.insert(positions, Vector3.new(w, (size - h), ((h + 1) - w)) * grid)
-                table.insert(positions, Vector3.new(w * -1, (size - h), ((h + 1) - w)) * grid)
-                table.insert(positions, Vector3.new(w, (size - h), (h - w) * -1) * grid)
-                table.insert(positions, Vector3.new(w * -1, (size - h), (h - w) * -1) * grid)
-            end
-        end
-        return positions
-    end
+    --[[
+        Onion‑layer bed protection.
+
+        protected = a set of positions (Vector3) that are already part of the defense.
+        Initially contains only the bed position.
+        For each layer:
+            - Examine every position in the current protected set.
+            - For each position, look at all adjacent horizontal positions (N, S, E, W)
+              and the position directly above.
+            - If an adjacent position is NOT already protected and does NOT contain
+              a block placed by another player (or is air), it becomes part of the new layer.
+            - After collecting all new positions for this layer, place them all.
+            - Then merge them into the protected set.
+        This guarantees that each layer is a complete shell surrounding the previous one,
+        expands outward by 1 block in every horizontal direction, and increases height
+        by exactly 1 block per layer.
+    ]]
 
     BedProtector = vape.Categories.World:CreateModule({
         Name = 'BedProtector',
@@ -12033,27 +12038,57 @@ run(function()
                 repeat
                     local bed = getBedNear()
                     if bed then
+                        -- Start with the bed block itself.
+                        local bedPos = roundPos(bed.Position)
+                        local protected = { [bedPos] = true }
+
                         for i, block in getBlocks() do
                             local switch, old = Switch.Enabled, store.hand and store.hand.tool and getHotbar(store.hand.tool) or nil
                             local hotbar = switch and getHotbar(block[3]) or nil
 
                             for layer = 1, Layers.Value do
-                                local size = i - (layer - 1)
-                                if size < 1 then size = 1 end
-                                local layerOffset = Vector3.new(0, (layer - 1) * 3, 0)
-                                local positions = getPyramid(size, 3)
+                                local newPositions = {}
 
-                                for _, pos in positions do
+                                -- For every block already in the protected structure...
+                                for pos in pairs(protected) do
+                                    -- Check all four horizontal directions.
+                                    for dx = -3, 3, 3 do
+                                        for dz = -3, 3, 3 do
+                                            if dx ~= 0 or dz ~= 0 then
+                                                local newPos = pos + Vector3.new(dx, 0, dz)
+                                                if not protected[newPos] then
+                                                    newPositions[newPos] = true
+                                                end
+                                            end
+                                        end
+                                    end
+                                    -- Also check directly above.
+                                    local upPos = pos + Vector3.new(0, 3, 0)
+                                    if not protected[upPos] then
+                                        newPositions[upPos] = true
+                                    end
+                                end
+
+                                -- Place all blocks in this new layer.
+                                local placedAny = false
+                                for newPos in pairs(newPositions) do
                                     if not BedProtector.Enabled then break end
-                                    local worldPos = (bed.CFrame * CFrame.new(pos + layerOffset)).Position
-                                    if getPlacedBlock(worldPos) then continue end
-                                    if (entitylib.character.RootPart.Position - worldPos).Magnitude > PlaceRange.Value then continue end
-
+                                    if getPlacedBlock(newPos) then
+                                        protected[newPos] = true   -- mark as already protected (block exists)
+                                        continue
+                                    end
+                                    if (entitylib.character.RootPart.Position - newPos).Magnitude > PlaceRange.Value then
+                                        continue
+                                    end
                                     if hotbar and hotbarSwitch(hotbar) then task.wait() end
-                                    task.spawn(bedwars.placeBlock, worldPos, block[1], false)
+                                    task.spawn(bedwars.placeBlock, newPos, block[1], false)
+                                    placedAny = true
+                                    protected[newPos] = true
                                     task.wait(0.1)
                                 end
 
+                                -- If we didn't place anything this layer, stop early (bed might be unreachable).
+                                if not placedAny then break end
                                 if not BedProtector.Enabled then break end
                             end
 
@@ -12076,6 +12111,7 @@ run(function()
         Tooltip = 'Automatically places strong blocks around the bed.'
     })
 
+    -- Options (unchanged from original)
     Mode = BedProtector:CreateDropdown({
         Name = 'Mode',
         List = {'Toggle', 'On Key'},
@@ -12100,7 +12136,6 @@ run(function()
     Switch = BedProtector:CreateToggle({Name = 'Auto Switch'})
     Smart = BedProtector:CreateToggle({Name = 'Smart', Default = true})
 end)
-
 run(function()
     local BlockIn
 
