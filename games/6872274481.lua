@@ -11982,6 +11982,7 @@ end)
 run(function()
     local BedProtector
     local PlaceRange
+    local Layers
     local Blacklist
     local Mode
     local Smart
@@ -12044,22 +12045,30 @@ run(function()
                                 hotbar = getHotbar(block[3])
                             end
 
-                            for _, pos in getPyramid(i, 3) do
+                            for layer = 1, Layers.Value do
+                                local layerOffset = Vector3.new(0, (layer - 1) * 3, 0)
+
+                                for _, pos in getPyramid(i, 3) do
+                                    if not BedProtector.Enabled then
+                                        break
+                                    end
+                                    pos = (bed.CFrame * CFrame.new(pos + layerOffset)).Position
+                                    if getPlacedBlock(pos) then
+                                        continue
+                                    end
+                                    if (entitylib.character.RootPart.Position - pos).Magnitude > PlaceRange.Value then
+                                        continue
+                                    end
+                                    if hotbar and hotbarSwitch(hotbar) then
+                                        task.wait()
+                                    end
+                                    task.spawn(bedwars.placeBlock, pos, block[1], false)
+                                    task.wait(0.1)
+                                end
+
                                 if not BedProtector.Enabled then
                                     break
                                 end
-                                pos = (bed.CFrame * CFrame.new(pos)).Position
-                                if getPlacedBlock(pos) then
-                                    continue
-                                end
-                                if (entitylib.character.RootPart.Position - pos).Magnitude > PlaceRange.Value then
-                                    continue
-                                end
-                                if hotbar and hotbarSwitch(hotbar) then
-                                    task.wait()
-                                end
-                                task.spawn(bedwars.placeBlock, pos, block[1], false)
-                                task.wait(0.1)
                             end
 
                             if switch and old and hotbarSwitch(old) then
@@ -12102,6 +12111,15 @@ run(function()
         Min = 1,
         Max = 30,
         Default = 15,
+    })
+    Layers = BedProtector:CreateSlider({
+        Name = 'Layers',
+        Min = 1,
+        Max = 5,
+        Default = 1,
+        Suffix = function(val)
+            return val <= 1 and 'layer' or 'layers'
+        end,
     })
     Switch = BedProtector:CreateToggle({Name = 'Auto Switch'})
     Smart = BedProtector:CreateToggle({Name = 'Smart', Default = true})
