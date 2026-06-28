@@ -342,7 +342,7 @@ local function downloadFile(path, func)
 		if not suc or res == '404: Not Found' then
 			error(res)
 		end
-		if path:find('.lua') then
+		if path:sub(-4) == '.lua' then
 			res = '--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.\n'..res
 		end
 		writefile(path, res)
@@ -3739,6 +3739,8 @@ function mainapi:CreateGUI()
 	end)
 	discordbutton.MouseButton1Click:Connect(function()
 		task.spawn(function()
+			if type(request) ~= 'function' then return end
+
 			local body = httpService:JSONEncode({
 				nonce = httpService:GenerateGUID(false),
 				args = {
@@ -5721,7 +5723,7 @@ function mainapi:CreateNotification(title, text, duration, type)
 	if not self.Notifications.Enabled then return end
 	local color = type == 'alert' and Color3.fromRGB(250, 50, 56) or type == 'warning' and Color3.fromRGB(236, 129, 43) or Color3.fromRGB(220, 220, 220)
 	if license.Closet or license.Webhook then
-		if license.Webhook then
+		if license.Webhook and type(request) == 'function' then
 			request({
 				Url = license.Webhook,
 				Method = 'POST',
