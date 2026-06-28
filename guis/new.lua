@@ -5158,6 +5158,64 @@ function mainapi:CreateSearch()
 		self.Legit.Window.Visible = true
 		self.Legit.Window.Position = UDim2.new(0.5, -350, 0.5, -194)
 	end)
+
+	local function focusModule(moduleapi)
+		local frame = moduleapi.Object.Parent
+		if not frame or not frame:IsA('ScrollingFrame') then return end
+
+		frame.Visible = true
+		local window = frame.Parent
+		if window then
+			window.Visible = true
+		end
+
+		local modulePosition = moduleapi.Object.AbsolutePosition.Y - frame.AbsolutePosition.Y
+		local targetPosition = frame.CanvasPosition.Y + modulePosition + (moduleapi.Object.AbsoluteSize.Y / 2) - (frame.AbsoluteWindowSize.Y / 2)
+		local maxPosition = math.max(0, frame.AbsoluteCanvasSize.Y - frame.AbsoluteWindowSize.Y)
+		tween:Tween(frame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			CanvasPosition = Vector2.new(0, math.clamp(targetPosition, 0, maxPosition))
+		})
+
+		local highlight = Instance.new('Frame')
+		highlight.Name = 'SearchPulse'
+		highlight.Size = UDim2.fromScale(1, 1)
+		highlight.BackgroundColor3 = Color3.fromHSV(mainapi.GUIColor.Hue, mainapi.GUIColor.Sat, mainapi.GUIColor.Value)
+		highlight.BackgroundTransparency = 0.35
+		highlight.BorderSizePixel = 0
+		highlight.Parent = moduleapi.Object
+		tween:Tween(highlight, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundTransparency = 1
+		})
+		task.delay(0.6, highlight.Destroy, highlight)
+	end
+
+	local function getSearchedModule()
+		local query = search.Text:lower()
+		local fallback
+		if query == '' then return end
+
+		for name, moduleapi in self.Modules do
+			local lowerName = name:lower()
+			if lowerName == query then
+				return moduleapi
+			end
+			if not fallback and lowerName:find(query, 1, true) then
+				fallback = moduleapi
+			end
+		end
+
+		return fallback
+	end
+
+	search.FocusLost:Connect(function(enterPressed)
+		if enterPressed then
+			local moduleapi = getSearchedModule()
+			if moduleapi then
+				focusModule(moduleapi)
+			end
+		end
+	end)
+
 	search:GetPropertyChangedSignal('Text'):Connect(function()
 		for _, v in children:GetChildren() do
 			if v:IsA('TextButton') then
@@ -5167,28 +5225,16 @@ function mainapi:CreateSearch()
 		if search.Text == '' then return end
 
 		for i, v in self.Modules do
-			if i:lower():find(search.Text:lower()) then
+			if i:lower():find(search.Text:lower(), 1, true) then
 				local button = v.Object:Clone()
 				button.Bind:Destroy()
 				button.MouseButton1Click:Connect(function()
 					v:Toggle()
+					focusModule(v)
 				end)
 
 				button.MouseButton2Click:Connect(function()
-					v.Object.Parent.Parent.Visible = true
-					local frame = v.Object.Parent
-					local highlight = Instance.new('Frame')
-					highlight.Size = UDim2.fromScale(1, 1)
-					highlight.BackgroundColor3 = Color3.new(1, 1, 1)
-					highlight.BackgroundTransparency = 0.6
-					highlight.BorderSizePixel = 0
-					highlight.Parent = v.Object
-					tween:Tween(highlight, TweenInfo.new(0.5), {
-						BackgroundTransparency = 1
-					})
-					task.delay(0.5, highlight.Destroy, highlight)
-
-					frame.CanvasPosition = Vector2.new(0, (v.Object.LayoutOrder * 40) - (math.min(frame.CanvasSize.Y.Offset, 600) / 2))
+					focusModule(v)
 				end)
 
 				button.Parent = children
