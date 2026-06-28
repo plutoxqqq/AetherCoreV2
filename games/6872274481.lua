@@ -9477,6 +9477,142 @@ run(function()
 end)
 
 run(function()
+	local AntiLasso
+	local Mode
+	local lastSafeCFrame
+	local lastSafeVelocity = Vector3.zero
+	local correctionUntil = 0
+	local pullSourcePosition
+	local lastVelocity = Vector3.zero
+
+	local function isLassoObject(obj)
+		local name = obj.Name:lower()
+		if name:find('lasso') or name:find('lassy') or name:find('rope') then
+			return true
+		end
+		local parent = obj.Parent
+		while parent and parent ~= workspace do
+			local parentName = parent.Name:lower()
+			if parentName:find('lasso') or parentName:find('lassy') then
+				return true
+			end
+			parent = parent.Parent
+		end
+		return false
+	end
+
+	local function markLassoPull(obj)
+		if not entitylib.isAlive or not isLassoObject(obj) then return end
+		local character = entitylib.character.Character
+		if obj:IsA('Constraint') then
+			local attachment0 = obj.Attachment0
+			local attachment1 = obj.Attachment1
+			local localAttachment = attachment0 and attachment0:IsDescendantOf(character) and attachment0 or attachment1 and attachment1:IsDescendantOf(character) and attachment1
+			local remoteAttachment = localAttachment == attachment0 and attachment1 or attachment0
+			if localAttachment then
+				correctionUntil = tick() + 0.65
+				pullSourcePosition = remoteAttachment and remoteAttachment.WorldPosition or pullSourcePosition
+			end
+		elseif obj:IsA('BasePart') and obj:IsDescendantOf(character) then
+			correctionUntil = tick() + 0.35
+		end
+	end
+
+	local function getPullDirection(root)
+		if pullSourcePosition then
+			local direction = (pullSourcePosition - root.Position) * Vector3.new(1, 0, 1)
+			if direction.Magnitude > 0.1 then
+				return direction.Unit
+			end
+		end
+		local safeDirection = lastSafeCFrame and (root.Position - lastSafeCFrame.Position) * Vector3.new(1, 0, 1) or Vector3.zero
+		return safeDirection.Magnitude > 0.1 and safeDirection.Unit or nil
+	end
+
+	local function counterPull(root, dt)
+		local horizontalVelocity = root.AssemblyLinearVelocity * Vector3.new(1, 0, 1)
+		local pullDirection = getPullDirection(root)
+		local moveDirection = entitylib.character.Humanoid.MoveDirection * Vector3.new(1, 0, 1)
+		local allowedVelocity = lastSafeVelocity * Vector3.new(1, 0, 1)
+		if moveDirection.Magnitude > 0.05 then
+			allowedVelocity = moveDirection.Unit * math.max(entitylib.character.Humanoid.WalkSpeed, allowedVelocity.Magnitude)
+		end
+
+		if pullDirection then
+			local pullSpeed = horizontalVelocity:Dot(pullDirection)
+			if pullSpeed > 0 then
+				horizontalVelocity -= pullDirection * pullSpeed
+			end
+		end
+
+		local velocityDelta = (horizontalVelocity - allowedVelocity)
+		if velocityDelta.Magnitude > 18 then
+			horizontalVelocity = allowedVelocity + velocityDelta.Unit * 18
+		end
+
+		root.AssemblyLinearVelocity = horizontalVelocity + Vector3.new(0, math.min(root.AssemblyLinearVelocity.Y, 0), 0)
+		if Mode.Value == 'Strong' and lastSafeCFrame then
+			local offset = (root.Position - lastSafeCFrame.Position) * Vector3.new(1, 0, 1)
+			if offset.Magnitude > 2.5 then
+				root.CFrame = root.CFrame:Lerp(lastSafeCFrame + Vector3.new(0, root.Position.Y - lastSafeCFrame.Position.Y, 0), math.clamp(dt * 18, 0, 0.9))
+			end
+			root:ApplyImpulse((allowedVelocity - (root.AssemblyLinearVelocity * Vector3.new(1, 0, 1))) * root.AssemblyMass)
+		end
+	end
+
+	AntiLasso = vape.Categories.Utility:CreateModule({
+		Name = 'AntiLasso',
+		Function = function(callback)
+			if callback then
+				AntiLasso:Clean(workspace.DescendantAdded:Connect(function(obj)
+					task.defer(markLassoPull, obj)
+				end))
+				AntiLasso:Clean(runService.Heartbeat:Connect(function(dt)
+					if not entitylib.isAlive then return end
+					local root = entitylib.character.RootPart
+					local humanoid = entitylib.character.Humanoid
+					local horizontalVelocity = root.AssemblyLinearVelocity * Vector3.new(1, 0, 1)
+					local horizontalAcceleration = ((horizontalVelocity - lastVelocity) / math.max(dt, 0.016)).Magnitude
+					lastVelocity = horizontalVelocity
+
+					for _, obj in entitylib.character.Character:GetDescendants() do
+						markLassoPull(obj)
+					end
+
+					local movingByInput = humanoid.MoveDirection.Magnitude > 0.05
+					if humanoid.FloorMaterial ~= Enum.Material.Air and horizontalVelocity.Magnitude < 70 and (movingByInput or tick() > correctionUntil) then
+						lastSafeCFrame = root.CFrame
+						lastSafeVelocity = root.AssemblyLinearVelocity
+					end
+
+					if horizontalAcceleration > 180 and horizontalVelocity.Magnitude > math.max(humanoid.WalkSpeed + 16, 34) and not movingByInput then
+						correctionUntil = tick() + 0.45
+					end
+
+					if tick() < correctionUntil then
+						counterPull(root, dt)
+					elseif tick() - correctionUntil > 1 then
+						pullSourcePosition = nil
+					end
+				end))
+			else
+				lastSafeCFrame = nil
+				pullSourcePosition = nil
+				correctionUntil = 0
+				lastVelocity = Vector3.zero
+			end
+		end,
+		Tooltip = 'Counters Lassy kit pull velocity instead of trying to remove the lasso. Strong resists displacement; Passive only cancels pull velocity.',
+	})
+	Mode = AntiLasso:CreateDropdown({
+		Name = 'Mode',
+		List = {'Strong', 'Passive'},
+		Tooltip = 'Strong has the highest success chance by countering pull velocity and easing you back to your safe position. Passive only removes velocity toward the pull source.',
+	})
+end)
+
+
+run(function()
     local AutoLasso
     local Targets
     local Range
