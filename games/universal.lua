@@ -1559,6 +1559,146 @@ run(function()
 	})
 end)
 
+
+run(function()
+	local MovementPrediction
+	local Duration
+	local Confidence
+	local Transparency
+	local predictionModel
+	local lastPrediction
+	local samples = {}
+
+	local function cleanupPredictionModel()
+		if predictionModel then
+			predictionModel:Destroy()
+			predictionModel = nil
+		end
+	end
+
+	local function stylePredictionModel(model, confidence)
+		local baseTransparency = Transparency.Value / 100
+		local partTransparency = Confidence.Enabled and confidence and confidence < 0.8 and 1 or baseTransparency
+		for _, obj in model:GetDescendants() do
+			if obj:IsA('BasePart') then
+				obj.Anchored = true
+				obj.CanCollide = false
+				obj.CanQuery = false
+				obj.CanTouch = false
+				obj.Massless = true
+				obj.CastShadow = false
+				obj.Transparency = partTransparency
+			elseif obj:IsA('Decal') or obj:IsA('Texture') then
+				obj.Transparency = math.clamp(partTransparency + 0.1, 0, 1)
+			elseif obj:IsA('Script') or obj:IsA('LocalScript') then
+				obj:Destroy()
+			end
+		end
+	end
+
+	local function rebuildPredictionModel()
+		cleanupPredictionModel()
+		if not entitylib.isAlive then return end
+		local character = entitylib.character.Character
+		if not character then return end
+		local oldArchivable = character.Archivable
+		character.Archivable = true
+		local clone = character:Clone()
+		character.Archivable = oldArchivable
+		if not clone then return end
+		clone.Name = 'AetherCoreMovementPrediction'
+		stylePredictionModel(clone)
+		clone.Parent = gameCamera
+		predictionModel = clone
+	end
+
+	local function getPredictedCFrame(dt)
+		if not entitylib.isAlive then return end
+		local root = entitylib.character.RootPart
+		local humanoid = entitylib.character.Humanoid
+		local now = tick()
+		table.insert(samples, {Time = now, Position = root.Position, Velocity = root.AssemblyLinearVelocity, MoveDirection = humanoid.MoveDirection})
+		while #samples > 12 or (#samples > 0 and now - samples[1].Time > 0.65) do
+			table.remove(samples, 1)
+		end
+
+		local horizontalVelocity = root.AssemblyLinearVelocity * Vector3.new(1, 0, 1)
+		local movementIntent = humanoid.MoveDirection * math.max(humanoid.WalkSpeed, horizontalVelocity.Magnitude)
+		local sampleVelocity = horizontalVelocity
+		if #samples >= 2 then
+			local first = samples[1]
+			local elapsed = math.max(now - first.Time, 0.016)
+			sampleVelocity = ((root.Position - first.Position) / elapsed) * Vector3.new(1, 0, 1)
+		end
+
+		local predictedVelocity = horizontalVelocity:Lerp(sampleVelocity, 0.35):Lerp(movementIntent, humanoid.MoveDirection.Magnitude > 0.05 and 0.25 or 0)
+		local predictionTime = math.clamp(Duration.Value / 100, 0.15, 1.5)
+		local predictedPosition = root.Position + (predictedVelocity * predictionTime)
+
+		if humanoid.FloorMaterial == Enum.Material.Air then
+			predictedPosition += Vector3.new(0, (root.AssemblyLinearVelocity.Y * predictionTime) - (workspace.Gravity * predictionTime * predictionTime * 0.5), 0)
+		else
+			local params = RaycastParams.new()
+			params.FilterDescendantsInstances = {entitylib.character.Character, predictionModel}
+			params.FilterType = Enum.RaycastFilterType.Exclude
+			local result = workspace:Raycast(predictedPosition + Vector3.new(0, 3, 0), Vector3.new(0, -12, 0), params)
+			if result then
+				predictedPosition = Vector3.new(predictedPosition.X, result.Position.Y + humanoid.HipHeight + (root.Size.Y / 2), predictedPosition.Z)
+			end
+		end
+
+		local confidence = math.clamp(1 - ((predictedVelocity - horizontalVelocity).Magnitude / math.max(humanoid.WalkSpeed, 16)), 0.2, 0.98)
+		if lastPrediction and (lastPrediction - predictedPosition).Magnitude < 3.5 then
+			confidence = math.min(confidence + 0.12, 0.98)
+		end
+		lastPrediction = predictedPosition
+		return CFrame.lookAlong(predictedPosition, root.CFrame.LookVector), confidence
+	end
+
+	MovementPrediction = vape.Categories.Render:CreateModule({
+		Name = 'MovementPrediction',
+		Function = function(callback)
+			if callback then
+				rebuildPredictionModel()
+				MovementPrediction:Clean(entitylib.Events.LocalAdded:Connect(function()
+					table.clear(samples)
+					task.defer(rebuildPredictionModel)
+				end))
+				MovementPrediction:Clean(runService.RenderStepped:Connect(function(dt)
+					if not entitylib.isAlive then
+						cleanupPredictionModel()
+						return
+					end
+					if not predictionModel or not predictionModel.Parent then
+						rebuildPredictionModel()
+					end
+					local predictedCFrame, confidence = getPredictedCFrame(dt)
+					if predictionModel and predictedCFrame then
+						predictionModel:PivotTo(predictedCFrame)
+						stylePredictionModel(predictionModel, confidence)
+					end
+				end))
+			else
+				table.clear(samples)
+				lastPrediction = nil
+				cleanupPredictionModel()
+			end
+		end,
+		Tooltip = 'Shows a transparent replica where your current movement is predicted to carry you next. Sudden manual direction changes cannot be predicted perfectly, but stable movement targets at least 80% confidence.',
+	})
+	Duration = MovementPrediction:CreateSlider({Name = 'Prediction Time', Min = 15, Max = 150, Default = 55, Suffix = 'cs'})
+	Transparency = MovementPrediction:CreateSlider({
+		Name = 'Transparency',
+		Min = 20,
+		Max = 95,
+		Default = 65,
+		Function = function()
+			if predictionModel then stylePredictionModel(predictionModel) end
+		end,
+	})
+	Confidence = MovementPrediction:CreateToggle({Name = '80% Confidence Guard', Default = true})
+end)
+
 run(function()
 	local SessionInfo
 	local FontOption
@@ -7329,20 +7469,32 @@ run(function()
     })
 end)
 
+
 run(function()
-    vape.Categories.Utility:CreateModule({
-	Name = 'Panic',
-	Function = function(callback)
-		if callback then
-			for _, v in vape.Modules do
-				if v.Enabled then
-					v:Toggle()
+	local Panic
+	local armedUntil = 0
+
+	Panic = vape.Categories.Utility:CreateModule({
+		Name = 'Panic',
+		Function = function(callback)
+			if callback then
+				local now = tick()
+				if now > armedUntil then
+					armedUntil = now + 8
+					notif('Panic', 'Panic is armed. Activate Panic again within 8 seconds to turn every module off.', 8, 'warning')
+					Panic:Toggle()
+					return
+				end
+				armedUntil = 0
+				for _, v in vape.Modules do
+					if v.Enabled then
+						v:Toggle()
+					end
 				end
 			end
-		end
-	end,
-	Tooltip = 'Disables all currently enabled modules',
-    })
+		end,
+		Tooltip = 'Requires a second activation before disabling all currently enabled modules',
+	})
 end)
 
 run(function()
