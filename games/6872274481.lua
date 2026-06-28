@@ -11991,10 +11991,8 @@ run(function()
     local function getBedNear()
         local localPosition = entitylib.isAlive and entitylib.character.RootPart.Position or Vector3.zero
         for _, v in collectionService:GetTagged('bed') do
-            if
-                (localPosition - v.Position).Magnitude < 14
-                and v:GetAttribute('Team' .. (lplr:GetAttribute('Team') or -1) .. 'NoBreak')
-            then
+            if (localPosition - v.Position).Magnitude < 14
+                and v:GetAttribute('Team' .. (lplr:GetAttribute('Team') or -1) .. 'NoBreak') then
                 return v
             end
         end
@@ -12005,9 +12003,7 @@ run(function()
         local blocks = {}
         for _, item in store.inventory.inventory.items do
             local block = bedwars.ItemMeta[item.itemType].block
-            if
-                block and not table.find(Blacklist.ListEnabled, item.itemType:find('wool') and 'wool' or item.itemType)
-            then
+            if block and not table.find(Blacklist.ListEnabled, item.itemType:find('wool') and 'wool' or item.itemType) then
                 table.insert(blocks, { item.itemType, block.health, item.tool })
             end
         end
@@ -12017,6 +12013,7 @@ run(function()
         return blocks
     end
 
+    -- Original pyramid function (kept for reference, but we no longer use it)
     local function getPyramid(size, grid)
         local positions = {}
         for h = size, 0, -1 do
@@ -12026,6 +12023,20 @@ run(function()
                 table.insert(positions, Vector3.new(w, (size - h), (h - w) * -1) * grid)
                 table.insert(positions, Vector3.new(w * -1, (size - h), (h - w) * -1) * grid)
             end
+        end
+        return positions
+    end
+
+    -- NEW: generate a flat base layer (only the bottom row of the pyramid)
+    local function getFlatBasePositions(size, grid)
+        local positions = {}
+        -- h = size means we only take the lowest row of the pyramid
+        local h = size
+        for w = h, 0, -1 do
+            table.insert(positions, Vector3.new(w, 0, ((h + 1) - w)) * grid)
+            table.insert(positions, Vector3.new(w * -1, 0, ((h + 1) - w)) * grid)
+            table.insert(positions, Vector3.new(w, 0, (h - w) * -1) * grid)
+            table.insert(positions, Vector3.new(w * -1, 0, (h - w) * -1) * grid)
         end
         return positions
     end
@@ -12045,10 +12056,13 @@ run(function()
                                 hotbar = getHotbar(block[3])
                             end
 
+                            -- Generate the flat base positions once (based on the block's "size" index i)
+                            local basePositions = getFlatBasePositions(i, 3)
+
                             for layer = 1, Layers.Value do
                                 local layerOffset = Vector3.new(0, (layer - 1) * 3, 0)
 
-                                for _, pos in getPyramid(i, 3) do
+                                for _, pos in basePositions do
                                     if not BedProtector.Enabled then
                                         break
                                     end
@@ -12092,6 +12106,7 @@ run(function()
         Tooltip = 'Automatically places strong blocks around the bed.'
     })
 
+    -- Module options (unchanged)
     Mode = BedProtector:CreateDropdown({
         Name = 'Mode',
         List = {'Toggle', 'On Key'},
