@@ -9633,12 +9633,12 @@ run(function()
 				lastVelocity = Vector3.zero
 			end
 		end,
-		Tooltip = 'Reduces lasso pull displacement and returns you to the position where the pull started.',
+		Tooltip = 'Prevents getting pulled by lasso',
 	})
 	Mode = AntiLasso:CreateDropdown({
 		Name = 'Mode',
 		List = {'Strong', 'Passive'},
-		Tooltip = 'Controls how aggressively AntiLasso resists lasso displacement.',
+		Tooltip = 'Controls how aggressively AntiLasso resists lasso displacement',
 	})
 end)
 
@@ -10159,7 +10159,7 @@ run(function()
 			until not TritonClutch.Enabled
 		end
 	end,
-	Tooltip = 'Automatically throws Triton\'s harpoon onto nearby ground after\nfalling a certain distance.'
+	Tooltip = 'Clutches with harpoon like AutoPearl'
     })
 
     Legit = TritonClutch:CreateToggle({
