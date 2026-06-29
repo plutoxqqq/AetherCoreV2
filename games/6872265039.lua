@@ -808,3 +808,164 @@ run(function()
 		end
 	})
 end)
+
+run(function()
+	local DeviceSpoofer
+	local Device
+
+	DeviceSpoofer = vape.Categories.Legit:CreateModule({
+		Name = 'DeviceSpoofer',
+		Function = function(callback)
+			if callback then
+				lplr:SetAttribute('UserInputType', Device.Value)
+				DeviceSpoofer:Clean(lplr:GetAttributeChangedSignal('UserInputType'):Connect(function()
+					if lplr:GetAttribute('UserInputType') ~= Device.Value then
+						lplr:SetAttribute('UserInputType', Device.Value)
+					end
+				end))
+			end
+		end,
+		Tooltip = 'Spoofs the local BedWars lobby input device.'
+	})
+
+	Device = DeviceSpoofer:CreateDropdown({
+		Name = 'Device',
+		List = {'Mobile', 'PC', 'Gamepad'},
+		Function = function(value)
+			if DeviceSpoofer.Enabled then
+				lplr:SetAttribute('UserInputType', value)
+			end
+		end
+	})
+end)
+
+run(function()
+	local LeaderboardSpoofer
+	local Wins
+	local Winstreak
+	local Level
+	local valueOriginals = {}
+	local textOriginals = {}
+
+	local function cleanNumber(value)
+		return tostring(math.max(0, math.floor(tonumber(value) or 0)))
+	end
+
+	local function spoofValue(valueObject, value)
+		if not valueOriginals[valueObject] then
+			valueOriginals[valueObject] = valueObject.Value
+		end
+		valueObject.Value = valueObject:IsA('StringValue') and tostring(value) or tonumber(value) or 0
+	end
+
+	local function applyLeaderstats()
+		local leaderstats = lplr:FindFirstChild('leaderstats')
+		if not leaderstats then return end
+		for _, valueObject in leaderstats:GetDescendants() do
+			if valueObject:IsA('IntValue') or valueObject:IsA('NumberValue') or valueObject:IsA('StringValue') then
+				local name = valueObject.Name:lower()
+				if name:find('winstreak') or name:find('win streak') or name == 'streak' then
+					spoofValue(valueObject, Winstreak.Value)
+				elseif name:find('win') then
+					spoofValue(valueObject, Wins.Value)
+				elseif name:find('level') or name == 'lvl' then
+					spoofValue(valueObject, Level.Value)
+				end
+			end
+		end
+	end
+
+	local function applyText(label)
+		if not (label:IsA('TextLabel') or label:IsA('TextButton')) then return end
+		local original = textOriginals[label] or label.Text
+		local lowered = original:lower()
+		local replacement
+		if lowered:find('winstreak') or lowered:find('win streak') then
+			replacement = Winstreak.Value
+		elseif lowered:find('wins') then
+			replacement = Wins.Value
+		elseif lowered:find('level') or lowered:find(' lvl') then
+			replacement = Level.Value
+		end
+		if not replacement then return end
+		textOriginals[label] = original
+		if original:find('%d') then
+			label.Text = original:gsub('%d+', replacement)
+		else
+			label.Text = original..' '..replacement
+		end
+	end
+
+	local function applyAll()
+		applyLeaderstats()
+		local playerGui = lplr:FindFirstChildOfClass('PlayerGui')
+		if not playerGui then return end
+		for _, descendant in playerGui:GetDescendants() do
+			applyText(descendant)
+		end
+	end
+
+	local function restoreAll()
+		for valueObject, original in valueOriginals do
+			if valueObject and valueObject.Parent then
+				valueObject.Value = original
+			end
+		end
+		for label, original in textOriginals do
+			if label and label.Parent then
+				label.Text = original
+			end
+		end
+		table.clear(valueOriginals)
+		table.clear(textOriginals)
+	end
+
+	LeaderboardSpoofer = vape.Categories.Utility:CreateModule({
+		Name = 'LeaderboardSpoofer',
+		Function = function(callback)
+			if callback then
+				applyAll()
+				local playerGui = lplr:FindFirstChildOfClass('PlayerGui')
+				if playerGui then
+					LeaderboardSpoofer:Clean(playerGui.DescendantAdded:Connect(function(descendant)
+						task.defer(applyText, descendant)
+					end))
+				end
+				task.spawn(function()
+					repeat
+						applyAll()
+						task.wait(1)
+					until not LeaderboardSpoofer.Enabled
+				end)
+			else
+				restoreAll()
+			end
+		end,
+		Tooltip = 'Locally spoofs visible BedWars lobby leaderboard values.'
+	})
+
+	Wins = LeaderboardSpoofer:CreateTextBox({
+		Name = 'Wins',
+		Default = '0',
+		Function = function()
+			Wins.Value = cleanNumber(Wins.Value)
+			if LeaderboardSpoofer.Enabled then applyAll() end
+		end
+	})
+	Winstreak = LeaderboardSpoofer:CreateTextBox({
+		Name = 'Winstreak',
+		Default = '0',
+		Function = function()
+			Winstreak.Value = cleanNumber(Winstreak.Value)
+			if LeaderboardSpoofer.Enabled then applyAll() end
+		end
+	})
+	Level = LeaderboardSpoofer:CreateTextBox({
+		Name = 'Level',
+		Default = '1',
+		Function = function()
+			Level.Value = cleanNumber(Level.Value)
+			if LeaderboardSpoofer.Enabled then applyAll() end
+		end
+	})
+end)
