@@ -162,6 +162,7 @@ run(function()
 		AchievementId = require(replicatedStorage.TS.achievement['achievement-id']).AchievementId,
 		Client = Client,
 		CrateItemMeta = canDebug and debug.getupvalue(Flamework.resolveDependency('client/controllers/global/reward-crate/crate-controller@CrateController').onStart, 3) or {},
+		BedwarsKitMeta = require(replicatedStorage.TS.games.bedwars.kit['bedwars-kit-meta']).BedwarsKitMeta,
 		QueueMeta = require(replicatedStorage.TS.game['queue-meta']).QueueMeta,
 		Store = require(lplr.PlayerScripts.TS.ui.store).ClientStore
 	}, {
@@ -323,6 +324,107 @@ run(function()
             end
         end,
         Tooltip = 'Automatically claims all rewards ingame.'
+    })
+end)
+
+run(function()
+    local SkywarsExploit
+    local KitDropdown
+    local kitIds = {}
+    local kitDisplayNames = {}
+    local kitDisplayToId = {}
+    local kitIdLookup = {}
+    local activateKitRemote = replicatedStorage.rbxts_include.node_modules['@rbxts'].net.out._NetManaged.BedwarsActivateKit
+
+    local function getKitDisplayName(kitId)
+        local meta = bedwars.BedwarsKitMeta and bedwars.BedwarsKitMeta[kitId]
+        return (meta and meta.name) or kitId:gsub('_', ' '):gsub('^%l', string.upper)
+    end
+
+    local function addKit(kitId)
+        if type(kitId) ~= 'string' or kitId == '' or kitId == 'none' or kitIdLookup[kitId] then return end
+        if bedwars.BedwarsKitMeta and not bedwars.BedwarsKitMeta[kitId] and not table.find(LARPKitsDefaultList, kitId) then return end
+        kitIdLookup[kitId] = true
+        table.insert(kitIds, kitId)
+    end
+
+    local function scanOwnedKits(value, depth, seen)
+        if depth > 6 or type(value) ~= 'table' or seen[value] then return end
+        seen[value] = true
+
+        for key, child in value do
+            local keyText = type(key) == 'string' and key:lower() or ''
+            if type(child) == 'string' then
+                if (keyText:find('kit') or kitIdLookup[child] ~= nil or (bedwars.BedwarsKitMeta and bedwars.BedwarsKitMeta[child])) then
+                    addKit(child)
+                end
+            elseif type(child) == 'table' then
+                local childKit = child.kit or child.kitId or child.id or child.name
+                if (keyText:find('kit') or child.owned == true or child.unlocked == true) and type(childKit) == 'string' then
+                    addKit(childKit)
+                end
+                scanOwnedKits(child, depth + 1, seen)
+            end
+        end
+    end
+
+    local function refreshKits()
+        table.clear(kitIds)
+        table.clear(kitDisplayNames)
+        table.clear(kitDisplayToId)
+        table.clear(kitIdLookup)
+
+        local success, state = pcall(function()
+            return bedwars.Store:getState()
+        end)
+        if success then
+            scanOwnedKits(state, 0, {})
+        end
+
+        if #kitIds == 0 then
+            for _, kitId in LARPKitsDefaultList do
+                addKit(kitId)
+            end
+        end
+
+        table.sort(kitIds, function(a, b)
+            return getKitDisplayName(a) < getKitDisplayName(b)
+        end)
+
+        for _, kitId in kitIds do
+            local displayName = getKitDisplayName(kitId)
+            if kitDisplayToId[displayName] then
+                displayName ..= ' ('..kitId..')'
+            end
+            kitDisplayToId[displayName] = kitId
+            table.insert(kitDisplayNames, displayName)
+        end
+
+        if KitDropdown then
+            KitDropdown:Change(kitDisplayNames)
+        end
+    end
+
+    SkywarsExploit = vape.Categories.Minigames:CreateModule({
+        Name = 'SkywarsExploit',
+        Function = function(callback)
+            if callback then
+                refreshKits()
+                local selectedKit = kitDisplayToId[KitDropdown.Value] or kitIds[1]
+                if selectedKit then
+                    activateKitRemote:InvokeServer({kit = selectedKit})
+                end
+                SkywarsExploit:Toggle(false)
+            end
+        end,
+        Tooltip = 'Equips a kit for Skywars'
+    })
+
+    refreshKits()
+    KitDropdown = SkywarsExploit:CreateDropdown({
+        Name = 'Kit',
+        List = kitDisplayNames,
+        Default = kitDisplayNames[1]
     })
 end)
 
