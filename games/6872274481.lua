@@ -14986,19 +14986,20 @@ local LARPKitsDefaultList = {
 
 run(function()
 	local LARPKits
-	local KitList
+	local KitToggles = {}
 
 	LARPKits = vape.Categories.Kits:CreateModule({
 		Name = 'LARPKits',
 		Function = function() end,
 		Tooltip = 'Configures the BedWars lobby kits enabled for LARP.'
 	})
-	KitList = LARPKits:CreateTextList({
-		Name = 'Kits',
-		Default = LARPKitsDefaultList,
-		Placeholder = 'Add kit...'
-	})
-	KitList.ListEnabled = table.clone(KitList.List)
+
+	for _, kit in LARPKitsDefaultList do
+		KitToggles[kit] = LARPKits:CreateToggle({
+			Name = kit,
+			Default = true
+		})
+	end
 end)
 
 run(function()
